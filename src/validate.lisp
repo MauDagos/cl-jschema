@@ -288,7 +288,7 @@ INVALID-JSON was triggered."
              for item* across items
              for index* from 0
              thereis (unless (= index index*)
-                       (json-equalp item item*)))
+                       (json-equal item item*)))
         return (raise-invalid-json keyword))))
 
 
@@ -403,12 +403,12 @@ INVALID-JSON was triggered."
 
 
 (defmethod check-type-schema ((const-schema const-schema) value)
-  (or (json-equalp value (const const-schema))
+  (or (json-equal value (const const-schema))
       (raise-invalid-json "const")))
 
 
 (defmethod check-type-schema ((enum-schema enum-schema) value)
-  (or (member value (items enum-schema) :test 'json-equalp)
+  (or (member value (items enum-schema) :test 'json-equal)
       (raise-invalid-json "enum")))
 
 

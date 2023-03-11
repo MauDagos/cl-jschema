@@ -38,29 +38,29 @@
   (eq value nil))
 
 
-;;; JSON-EQUALP
+;;; JSON-EQUAL
 
-(defmethod json-equalp (json1 json2)
+(defmethod json-equal (json1 json2)
   (equal json1 json2))
 
 
-(defmethod json-equalp ((json1 hash-table) (json2 hash-table))
+(defmethod json-equal ((json1 hash-table) (json2 hash-table))
   (and (= (hash-table-count json1)
           (hash-table-count json2))
        (loop
          for key1 being the hash-key in json1
            using (hash-value value1)
          for value2 = (gethash key1 json2)
-         always (json-equalp value1 value2))))
+         always (json-equal value1 value2))))
 
 
-(defmethod json-equalp ((json1 array) (json2 array))
+(defmethod json-equal ((json1 array) (json2 array))
   (and (= (length json1)
           (length json2))
        (loop
          for item1 across json1
          for item2 across json2
-         always (json-equalp item1 item2))))
+         always (json-equal item1 item2))))
 
 
 ;;; Misc
