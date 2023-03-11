@@ -116,7 +116,7 @@
     (cl-jschema:parse "{\"pattern\": \"[0-a\"}")))
 
 
-(cl-jschema-test :string-format-test
+(cl-jschema-test :valid-string-format-test
   (5am:finishes
     (cl-jschema:parse "{
                          \"type\": \"string\",
@@ -567,6 +567,19 @@ $ : Property \"department\" is not allowed")))
                   (expected-message "$" "type" "array"))))
 
 
+(cl-jschema-test :string-is-not-array-test
+  (invalid-json (cl-jschema:parse "{
+                                     \"type\": \"object\",
+                                     \"properties\": {
+                                       \"foo\": {
+                                         \"type\": \"array\"
+                                       }
+                                     }
+                                   }")
+                "{\"foo\": \"Not an array\"}"
+                (expected-message "$.foo" "type" "array")))
+
+
 (cl-jschema-test :array-items-test
   (let ((json-schema (cl-jschema:parse "{
                                           \"type\": \"array\",
@@ -690,7 +703,7 @@ $ : Property \"department\" is not allowed")))
                   (expected-message "$" "uniqueItems"))))
 
 
-(cl-jschema-test :json-schema-annotations-test
+(cl-jschema-test :valid-json-schema-annotations-test
   (5am:finishes
     (cl-jschema:parse "{
                          \"title\": \"Match anything\",
@@ -704,7 +717,7 @@ $ : Property \"department\" is not allowed")))
                        }")))
 
 
-(cl-jschema-test :string-encodings-test
+(cl-jschema-test :valid-string-encodings-test
   (5am:finishes
     (cl-jschema:parse "{
                          \"type\": \"string\",
@@ -1046,7 +1059,7 @@ $ : Property \"department\" is not allowed")))
                   (expected-message "$" "anyOf"))))
 
 
-(cl-jschema-test :metadata-keywords-allowed-test
+(cl-jschema-test :valid-metadata-keywords-test
   (dolist (json '("{
                      \"type\": \"number\",
                      \"units\": \"kg\"
@@ -1154,6 +1167,9 @@ $ : Property \"department\" is not allowed")))
                   ("{\"description\":42}"
                    "Keyword description expects a string")
                   ("{\"examples\":42}"
+                   "Keyword examples expects a JSON array")
+                  ;; A string should not be considered a JSON array
+                  ("{\"examples\":\"hello\"}"
                    "Keyword examples expects a JSON array")
                   ("{\"readOnly\":42}"
                    "Keyword readOnly expects a boolean")

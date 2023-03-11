@@ -23,21 +23,21 @@
   (plusp (length array)))
 
 (deftype non-empty-array ()
-  `(and array (satisfies non-empty-array-p)))
+  `(and simple-vector (satisfies non-empty-array-p)))
 
 
 (defun array-of-strings-p (array)
   (array-of-type-p array 'string))
 
 (deftype array-of-strings ()
-  `(and array (satisfies array-of-strings-p)))
+  `(and simple-vector (satisfies array-of-strings-p)))
 
 
 (defun array-of-hash-tables-p (array)
   (array-of-type-p array 'hash-table))
 
 (deftype array-of-hash-tables ()
-  `(and array (satisfies array-of-hash-tables-p)))
+  `(and simple-vector (satisfies array-of-hash-tables-p)))
 
 
 (defun array-of-schema-likes-p (array)

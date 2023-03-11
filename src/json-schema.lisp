@@ -1,7 +1,8 @@
 (in-package :cl-jschema)
 
 
-(defparameter *$schema* "https://json-schema.org/draft/2020-12/schema")
+(defparameter *$schema* "https://json-schema.org/draft/2020-12/schema"
+  "The default value for $schema (and currently the only one supported).")
 
 
 ;;; Registry of JSON Schemas

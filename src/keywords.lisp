@@ -12,7 +12,7 @@
     ("description" . string)
     ;; * default - if the JSON Schema is parsable, then it can be anything
     ("default"     . t)
-    ("examples"    . array)
+    ("examples"    . simple-vector)
     ("readOnly"    . json-boolean)
     ("writeOnly"   . json-boolean)
     ("deprecated"  . json-boolean)
@@ -139,14 +139,14 @@
                                   "maxProperties"
                                   "dependentRequired"
                                   "dependentSchemas"))
-            ("array" array ("items"
-                            "prefixItems"
-                            "contains"
-                            "minContains"
-                            "maxContains"
-                            "minItems"
-                            "maxItems"
-                            "uniqueItems"))
+            ("array" simple-vector ("items"
+                                    "prefixItems"
+                                    "contains"
+                                    "minContains"
+                                    "maxContains"
+                                    "minItems"
+                                    "maxItems"
+                                    "uniqueItems"))
             ("boolean" json-boolean ())
             ("null" json-null ())))
   "Map of allowed \"type\" values along with the Lisp type that the JSON being
@@ -188,7 +188,7 @@ validated must satisfy and keywords which map to the type.")
      . "Keyword ~a expects a positive integer")
     (alexandria:non-negative-integer
      . "Keyword ~a expects a non-negative integer")
-    (array
+    (simple-vector
      . "Keyword ~a expects a JSON array")
     (non-empty-array
      . "Keyword ~a expects a non-empty JSON array")
