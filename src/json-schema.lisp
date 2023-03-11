@@ -5,12 +5,6 @@
   "The default value for $schema (and currently the only one supported).")
 
 
-;;; Registry of JSON Schemas
-
-(defvar *json-schema-registry* (make-hash-table :test 'equal)
-  "Map of string identifiers to 'JSON-SCHEMA-SPEC objects")
-
-
 ;;; Regex
 
 (defclass regex-box ()
@@ -83,9 +77,9 @@ slots, based on the INPUT-SPEC."
 
 
 (defclass json-object-schema (json-type-schema)
-  ((additional-properties :initform t   ; i.e. JSON true
+  ((additional-properties :initform (json-true-schema)
                           :reader additional-properties)
-   (unevaluated-properties :initform t  ; i.e. JSON true
+   (unevaluated-properties :initform (json-true-schema)
                            :reader unevaluated-properties)))
 
 
@@ -97,7 +91,7 @@ slots, based on the INPUT-SPEC."
 
 
 (defclass json-array-schema (json-type-schema)
-  ((items :initform t                   ; i.e. JSON true
+  ((items :initform (json-true-schema)
           :reader items)
    (contains :initform nil
              :reader contains)
@@ -134,10 +128,7 @@ slots, based on the INPUT-SPEC."
 ;;; JSON Schemas encapsulation
 
 (defclass json-schema-spec ()
-  ((id :initarg :id
-       :initform nil
-       :reader id)
-   (annotations :initarg :annotations
+  ((annotations :initarg :annotations
                 :initform nil
                 :reader annotations)
    (condition-schemas :initarg :condition-schemas
@@ -154,12 +145,22 @@ slots, based on the INPUT-SPEC."
              :reader metadata)))
 
 
-;;; Exported JSON Schema objects
+(defun json-true-schema ()
+  (make-instance 'json-schema :schema-spec t))
+
+
+;;; Exported JSON Schema object
 
 (defclass json-schema ()
   ((schema :initarg :schema
            :initform *$schema*
            :reader schema)
+   (id :initarg :id
+       :initform nil
+       :reader id)
+   (anchor :initarg :anchor
+           :initform nil
+           :reader anchor)
    (schema-spec :initarg :schema-spec
                 :initform nil
                 :reader schema-spec)))

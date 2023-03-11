@@ -14,6 +14,7 @@
                              (:file "types")
                              (:file "keywords")
                              (:file "json-schema")
+                             (:file "registry")
                              (:file "parse")
                              (:file "validate"))))
   :in-order-to ((test-op (test-op "cl-jschema/tests"))))

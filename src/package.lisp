@@ -4,6 +4,8 @@
   ;; JSON Schema entrypoints
   (:export #:parse
            #:validate
+           #:clear-registry
+           #:get-schema
            ;; JSON Schema
            #:json-schema
            ;; Conditions

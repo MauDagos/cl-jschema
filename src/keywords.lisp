@@ -4,9 +4,11 @@
 ;;; All keywords
 
 (defparameter *keyword-specs*
-  '(;; root
+  '(;; schema dialect
     ("$schema" . string)
-    ("$id"     . uri-without-fragment)
+    ;; schema identification
+    ("$id"     . uri-reference-without-fragment)
+    ("$anchor" . string)
     ;; annotations
     ("title"       . string)
     ("description" . string)
@@ -180,7 +182,7 @@ validated must satisfy and keywords which map to the type.")
      . "Keyword ~a expects a string")
     (regex
      . "Keyword ~a expects a regular expression")
-    (uri-without-fragment
+    (uri-reference-without-fragment
      . "Keyword ~a expects a URI without a fragment")
     (number
      . "Keyword ~a expects a number")

@@ -26,7 +26,7 @@
                    (expected-message "$" "false-schema"))))
 
 
-(cl-jschema-test :keyword-schema-test
+(cl-jschema-test :valid-schema-dialect-test
   (5am:finishes
     (cl-jschema:parse "{
                          \"$schema\": \"https://json-schema.org/draft/2020-12/schema\"
@@ -39,18 +39,17 @@
                        }")))
 
 
-(cl-jschema-test :id-test
-  (dolist (schema '( ; Full URI without fragment
-                    "{
-                       \"$id\": \"http://yourdomain.com/schemas/myschema.json\"
-                     }"
-                    ;; Relative URI
-                    "{
-                       \"$id\": \"https://example.com/schemas/address\"
-                     }"
-                    "{
-                       \"$id\": \"/schemas/address\"
-                     }"
+(cl-jschema-test :valid-id-test
+  (dolist (id '( ; Full URI without fragment
+                "http://yourdomain.com/schemas/myschema.json"
+                ;; Relative URI
+                "https://example.com/schemas/address"
+                "/schemas/address"))
+    (let (schema)
+      (5am:finishes
+        (setq schema (cl-jschema:parse (format nil "{\"$id\":~s}" id))))
+      (5am:is (eq schema (cl-jschema:get-schema id)))))
+  (dolist (schema '(
                     ;; Nested is also allowed
                     "{
                        \"additionalProperties\": {
@@ -1077,6 +1076,34 @@ $ : Property \"department\" is not allowed")))
     (5am:finishes (cl-jschema:parse json))))
 
 
+(cl-jschema-test :valid-anchor-test
+  (let (schema)
+    (5am:finishes
+      (setq schema
+            (cl-jschema:parse "{
+                                 \"$id\": \"https://example.com/schemas/address\",
+                                 \"type\": \"object\",
+                                 \"properties\": {
+                                   \"street_address\":
+                                     {
+                                       \"$anchor\": \"street_address\",
+                                       \"type\": \"string\"
+                                     },
+                                   \"city\": { \"type\": \"string\" },
+                                   \"state\": { \"type\": \"string\" }
+                                 },
+                                 \"required\": [\"street_address\", \"city\", \"state\"]
+                               }")))
+    (5am:is (eq (cl-jschema:get-schema "https://example.com/schemas/address#street_address")
+                ;; The path to the inner schema object. I hope this doesn't have
+                ;; to be updated often...
+                (gethash "street_address"
+                         (cl-jschema::get-type-property
+                          (cl-jschema::type-schema
+                           (cl-jschema::schema-spec schema))
+                          "properties"))))))
+
+
 (cl-jschema-test :invalid-schemas-test
   (dolist (data '(("{\"type\":\"jorl\"}"
                    "Type \"jorl\" is not allowed")
@@ -1086,8 +1113,12 @@ $ : Property \"department\" is not allowed")))
                    "Keyword $schema expects a string")
                   ("{\"$id\":42}"
                    "Keyword $id expects a URI without a fragment")
+                  ("{\"$id\":\"\"}"
+                   "Keyword $id expects a URI without a fragment")
                   ("{\"$id\":\"https://example.com/schemas/address#foo\"}"
                    "Keyword $id expects a URI without a fragment")
+                  ("{\"$anchor\":42}"
+                   "Keyword $anchor expects a string")
                   ("{\"type\":42}"
                    "The value for \"type\" must be a string or an array")
                   ("{\"minLength\":\"2\"}"

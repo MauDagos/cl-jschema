@@ -88,9 +88,11 @@
   `(and string))
 
 
-(defun uri-without-fragment-p (value)
-  (alexandria:when-let ((uri (ignore-errors (puri:parse-uri value))))
-    (null (puri:uri-fragment uri))))
+(defun uri-reference-without-fragment-p (value)
+  (and (stringp value)
+       (plusp (length value))
+       (alexandria:when-let ((uri (ignore-errors (puri:parse-uri value))))
+         (null (puri:uri-fragment uri)))))
 
-(deftype uri-without-fragment ()
-  `(satisfies uri-without-fragment-p))
+(deftype uri-reference-without-fragment ()
+  `(satisfies uri-reference-without-fragment-p))

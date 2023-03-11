@@ -45,7 +45,7 @@
 (defun parse-object-of-json-schemas (json-object)
   (let ((schemas (make-hash-table :test 'equal))) ; Case sensitive
     (maphash (lambda (key value)
-               (setf (gethash key schemas) (make-schema-spec value)))
+               (setf (gethash key schemas) (make-json-schema value)))
              json-object)
     (when (plusp (hash-table-count schemas))
       schemas)))
@@ -56,7 +56,7 @@
     (when (plusp json-array-length)
       (loop
         for item across json-array
-        collect (make-schema-spec item)))))
+        collect (make-json-schema item)))))
 
 
 (defun parse-regex (string)
@@ -74,7 +74,7 @@
   (let ((properties (make-hash-table :test 'eq)))
     (maphash (lambda (key value)
                (let ((regex (parse-regex key)))
-                 (setf (gethash regex properties) (make-schema-spec value))))
+                 (setf (gethash regex properties) (make-json-schema value))))
              json-object)
     (when (plusp (hash-table-count properties))
       properties)))
@@ -104,7 +104,7 @@ If successful, also remove the KEYWORD from the JSON-OBJECT."
                (parse-object-of-json-schemas value)))
           ;; Schema
           (schema-like
-           (make-schema-spec value))
+           (make-json-schema value))
           ;; Others
           (string-or-array-of-strings
            (etypecase value
@@ -117,14 +117,12 @@ If successful, also remove the KEYWORD from the JSON-OBJECT."
 
 
 (defun make-const-schema (json-object)
-  ;; TODO: instead of GETHASH, use JSON Pointer or JSON Path
   (alexandria:when-let ((const (gethash "const" json-object)))
     (make-instance 'const-schema
                    :const (parse-keyword-value "const" const json-object))))
 
 
 (defun make-enum-schema (json-object)
-  ;; TODO: instead of GETHASH, use JSON Pointer or JSON Path
   (alexandria:when-let ((enum (gethash "enum" json-object)))
     (make-instance 'enum-schema
                    :items (parse-keyword-value "enum" enum json-object))))
@@ -231,34 +229,46 @@ If successful, also remove the KEYWORD from the JSON-OBJECT."
     (json-boolean
      json)
     (hash-table
-     (when (gethash "$schema" json)
-       (error 'invalid-schema
-              :format-control "$schema is only allowed at the root level"))
-     (let ((id (gethash "$id" json)))
-       (make-instance 'json-schema-spec
-                      :id (when id
-                            (parse-keyword-value "$id" id json))
-                      :annotations (make-annotations json)
-                      :condition-schemas (make-condition-schemas json)
-                      :logical-schemas (make-logical-schemas json)
-                      :type-schema (make-type-schema json)
-                      :metadata (make-metadata json))))))
+     (make-instance 'json-schema-spec
+                    :annotations (make-annotations json)
+                    :condition-schemas (make-condition-schemas json)
+                    :logical-schemas (make-logical-schemas json)
+                    :type-schema (make-type-schema json)
+                    :metadata (make-metadata json)))))
 
 
-(defun make-json-schema (json)
-  (let* ((schema-val (when (typep json 'hash-table)
-                       (gethash "$schema" json)))
-         (schema (when schema-val
-                   (parse-keyword-value "$schema" schema-val json)))
-         (json-schema (make-instance 'json-schema
-                                     :schema-spec (make-schema-spec json))))
-    (when schema
-      (unless (equal schema *$schema*)
+(defvar *root-id*)
+
+
+(defun make-json-schema (json &key rootp)
+  (multiple-value-bind (schema id anchor)
+      (when (typep json 'hash-table)
+        (values (gethash "$schema" json)
+                (gethash "$id" json)
+                (gethash "$anchor" json)))
+    (when (and schema (not rootp))
+      (error 'invalid-schema
+             :format-control "$schema is only allowed at the root level"))
+    (when (and id rootp)
+      (setq *root-id* id))
+    (let ((json-schema
+            (make-instance 'json-schema
+                           :schema (when schema
+                                     (parse-keyword-value "$schema" schema json))
+                           :id (when id
+                                 (parse-keyword-value "$id" id json))
+                           :anchor (when anchor
+                                     (parse-keyword-value "$anchor" anchor json))
+                           :schema-spec (make-schema-spec json))))
+      (when (and schema (not (equal schema *$schema*)))
         (warn "No defined support for schema ~s. The schema will be treated as ~
                of draft 2020-12."
               schema))
-      (setf (slot-value json-schema 'schema) schema))
-    json-schema))
+      (when (and id rootp)
+        (register-schema id json-schema))
+      (when (and anchor *root-id*)
+        (register-schema (format nil "~a#~a" *root-id* anchor) json-schema))
+      json-schema)))
 
 
 ;;; Entrypoints
@@ -269,7 +279,8 @@ If successful, also remove the KEYWORD from the JSON-OBJECT."
                           :allow-trailing-comma allow-trailing-comma)))
     (typecase json
       ((or json-boolean hash-table)
-       (make-json-schema json))
+       (let ((*root-id* nil))
+         (make-json-schema json :rootp t)))
       (t
        (error 'invalid-schema
               :format-control "The provided JSON schema is invalid")))))

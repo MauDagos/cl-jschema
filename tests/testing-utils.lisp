@@ -6,21 +6,26 @@
 (defvar *debug-tests* nil)
 
 
+(defun call-cl-jschema-test (name body-fn)
+  (declare (ignore name))
+  (handler-bind ((error (lambda (e)
+                          (when *debug-tests*
+                            (invoke-debugger e)))))
+    (let ((cl-jschema::*registry* (make-hash-table :test 'equal)))
+      (funcall body-fn))))
+
+
 (defmacro cl-jschema-test (name &body body)
-  (alexandria:with-gensyms (e)
-    `(5am:test ,name
-       (handler-bind ((error (lambda (,e)
-                               (when *debug-tests*
-                                 (invoke-debugger ,e)))))
-         ,@body))))
+  `(5am:test ,name
+     (call-cl-jschema-test ,name (lambda () ,@body))))
 
 
 (defmacro signals (condition-spec message &body body)
-  (alexandria:with-gensyms (e)
-    `(progn
-       (5am:signals ,condition-spec ,@body)
+  (alexandria:with-gensyms (e body-fn)
+    `(let ((,body-fn (lambda () ,@body)))
+       (5am:signals ,condition-spec (funcall ,body-fn))
        (5am:is (equal ,message (handler-case
-                                   (progn ,@body)
+                                   (funcall ,body-fn)
                                  (,condition-spec (,e)
                                    (format nil "~a" ,e))))))))
 
