@@ -263,16 +263,13 @@ If successful, also remove the KEYWORD from the JSON-OBJECT."
 
 ;;; Entrypoints
 
-(defmethod parse ((stream stream))
-  (let ((json (jzon:parse stream)))
+(defun parse (input &key allow-comments allow-trailing-comma)
+  (let ((json (jzon:parse input
+                          :allow-comments allow-comments
+                          :allow-trailing-comma allow-trailing-comma)))
     (typecase json
       ((or json-boolean hash-table)
        (make-json-schema json))
       (t
        (error 'invalid-schema
               :format-control "The provided JSON schema is invalid")))))
-
-
-(defmethod parse ((json string))
-  (with-input-from-string (stream json)
-    (parse stream)))
