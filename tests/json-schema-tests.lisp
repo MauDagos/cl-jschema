@@ -26,26 +26,39 @@
                    (expected-message "$" "false-schema"))))
 
 
-(cl-jschema-test :schema/id-test
+(cl-jschema-test :keyword-schema-test
   (5am:finishes
     (cl-jschema:parse "{
-                         \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",
-                         \"$id\": \"http://yourdomain.com/schemas/myschema.json\"
-                       }"))
-  (5am:finishes
-    (cl-jschema:parse "{
-                         \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",
-                         \"additionalProperties\": {
-                           \"$id\": \"http://yourdomain.com/schemas/myschema.json\"
-                         }
+                         \"$schema\": \"https://json-schema.org/draft/2020-12/schema\"
                        }"))
   (signals cl-jschema:invalid-schema "$schema is only allowed at the root level"
     (cl-jschema:parse "{
                          \"additionalProperties\": {
-                           \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",
-                           \"$id\": \"http://yourdomain.com/schemas/myschema.json\"
+                           \"$schema\": \"https://json-schema.org/draft/2020-12/schema\"
                          }
                        }")))
+
+
+(cl-jschema-test :id-test
+  (dolist (schema '( ; Full URI without fragment
+                    "{
+                       \"$id\": \"http://yourdomain.com/schemas/myschema.json\"
+                     }"
+                    ;; Relative URI
+                    "{
+                       \"$id\": \"https://example.com/schemas/address\"
+                     }"
+                    "{
+                       \"$id\": \"/schemas/address\"
+                     }"
+                    ;; Nested is also allowed
+                    "{
+                       \"additionalProperties\": {
+                         \"$id\": \"http://yourdomain.com/schemas/myschema.json\"
+                       }
+                     }"))
+    (5am:finishes
+      (cl-jschema:parse schema))))
 
 
 (cl-jschema-test :basic-number-type-test
@@ -1059,6 +1072,8 @@ $ : Property \"department\" is not allowed")))
                   ("{\"$schema\":42}"
                    "Keyword $schema expects a string")
                   ("{\"$id\":42}"
+                   "Keyword $id expects a URI without a fragment")
+                  ("{\"$id\":\"https://example.com/schemas/address#foo\"}"
                    "Keyword $id expects a URI without a fragment")
                   ("{\"type\":42}"
                    "The value for \"type\" must be a string or an array")
