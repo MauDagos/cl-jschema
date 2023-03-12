@@ -237,21 +237,30 @@ If successful, also remove the KEYWORD from the JSON-OBJECT."
                     :metadata (make-metadata json)))))
 
 
+;;; For keeping track of the value of $id found on the root of the JSON Schema
+;;; object.
 (defvar *root-id*)
 
 
 (defun make-json-schema (json &key rootp)
-  (multiple-value-bind (schema id anchor ref)
+  (multiple-value-bind (schema id anchor ref defs)
       (when (typep json 'hash-table)
         (values (gethash "$schema" json)
                 (gethash "$id" json)
                 (gethash "$anchor" json)
-                (gethash "$ref" json)))
-    (when (and schema (not rootp))
-      (error 'invalid-schema
-             :format-control "$schema is only allowed at the root level"))
+                (gethash "$ref" json)
+                (gethash "$defs" json)))
+    ;; Check root-only values
+    (unless rootp
+      (when schema
+        (error 'invalid-schema
+               :format-control "$schema is only allowed at the root level"))
+      (when defs
+        (error 'invalid-schema
+               :format-control "$defs is only allowed at the root level")))
     (when (and id rootp)
       (setq *root-id* id))
+    ;; Parse the JSON Schema
     (let ((json-schema
             (make-instance 'json-schema
                            :schema (when schema
@@ -261,20 +270,45 @@ If successful, also remove the KEYWORD from the JSON-OBJECT."
                            ;; Parse the root $id after the call to
                            ;; 'PARSE-KEYWORD-VALUE for $id, so we're sure that
                            ;; the root $id is valid
-                           :base-uri (puri:parse-uri *root-id*)
+                           :base-uri (when *root-id*
+                                       (puri:parse-uri *root-id*))
                            :anchor (when anchor
                                      (parse-keyword-value "$anchor" anchor json))
                            :ref (when ref
                                   (parse-keyword-value "$ref" ref json))
+                           :defs (when defs
+                                   (parse-keyword-value "$defs" defs json))
                            :schema-spec (make-schema-spec json))))
+      ;; Warn if the specified $schema is not supported
       (when (and schema (not (equal schema *$schema*)))
         (warn "No defined support for schema ~s. The schema will be treated as ~
                of draft 2020-12."
               schema))
-      (when (and id rootp)
-        (register-schema id json-schema))
-      (when (and anchor *root-id*)
-        (register-schema (format nil "~a#~a" *root-id* anchor) json-schema))
+      ;; Register the json schema in our registry if there's a base URI ($id)
+      (when *root-id*
+        (register-schema *root-id* json-schema)
+        ;; Register the anchor as the base URI with the anchor as the fragment.
+        ;; We assume the anchor is a valid JSON Pointer
+        (when anchor
+          (let ((anchor-uri (puri:copy-uri (base-uri json-schema))))
+            (setf (puri:uri-fragment anchor-uri) anchor)
+            (register-schema (puri:render-uri anchor-uri nil) json-schema)))
+        ;; Register the $defs as base URI without a path and with the "$def
+        ;; name" as the fragment. We assume the "$def name" is a valid JSON
+        ;; Pointer
+        ;;
+        ;; NOTE: we're only registering the top-level names in $defs. That means
+        ;; we won't support referencing with $refs internal subschemas that are
+        ;; deeply nested.
+        (when defs
+          (maphash (lambda (def-name def-json-schema)
+                     (let ((def-uri (puri:copy-uri (base-uri json-schema))))
+                       (setf (puri:uri-path def-uri) nil
+                             (puri:uri-fragment def-uri) (format nil "/$defs/~a"
+                                                                 def-name))
+                       (register-schema (puri:render-uri def-uri nil)
+                                        def-json-schema)))
+                   (defs json-schema))))
       json-schema)))
 
 

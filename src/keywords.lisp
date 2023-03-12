@@ -10,6 +10,7 @@
     ("$id"     . uri-reference-without-fragment)
     ("$anchor" . string)
     ("$ref"    . uri-reference)
+    ("$defs"   . hash-table-of-schema-likes)
     ;; annotations
     ("title"       . string)
     ("description" . string)

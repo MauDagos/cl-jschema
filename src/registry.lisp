@@ -2,7 +2,7 @@
 
 
 (defvar *registry* (make-hash-table :test 'equal)
-  "Map of string identifiers to 'JSON-SCHEMA objects")
+  "Map of URI-references to 'JSON-SCHEMA objects")
 
 
 (defun register-schema (id json-schema)

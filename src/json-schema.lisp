@@ -167,6 +167,9 @@ slots, based on the INPUT-SPEC."
    (ref :initarg :ref
         :initform nil
         :reader ref)
+   (defs :initarg :defs
+         :initform nil
+         :reader defs)
    (schema-spec :initarg :schema-spec
                 :initform nil
                 :reader schema-spec

@@ -480,18 +480,22 @@ INVALID-JSON was triggered."
            (ref-schema (or
                         ;; $ref might be resolvable on its own
                         (get-schema ref)
-                        ;; if not, then resolve against the base URI, if any
+                        ;; If not, then resolve against the base URI, if any.
+                        ;; Clear the base URIs path and then append $ref to it.
+                        ;; $ref can be either a path or a fragment
                         (when base-uri
-                          ;; Get the reference URI by setting $ref as the
-                          ;; path in the base URI
-                          (let ((ref-uri (puri:copy-uri base-uri)))
-                            (setf (puri:uri-path ref-uri) ref)
-                            (get-schema (puri:render-uri ref-uri nil)))))))
+                          (let ((base-host-uri (puri:copy-uri base-uri)))
+                            (setf (puri:uri-path base-host-uri) nil)
+                            (get-schema (format nil "~a~a"
+                                                (puri:render-uri base-host-uri nil)
+                                                ref)))))))
       (when ref-schema
         (check-schema ref-schema value)))))
 
 
 (defun check-schema (json-schema value)
+  ;; NOTE: the spec on $ref doesn't say that it disallows validating with other
+  ;; keywords, so consider it possible
   (check-schema-ref json-schema value)
   (check-schema-spec (schema-spec json-schema) value))
 

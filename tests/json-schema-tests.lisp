@@ -1206,6 +1206,55 @@ $.billing_address.city : Not of type \"string\"")))
                   (expected-message "$.shipping_address.street_address" "type" "string"))))
 
 
+(cl-jschema-test :defs-test
+  (let (schema-customer)
+    (5am:finishes
+      (setq schema-customer
+            (cl-jschema:parse "{
+                                 \"$id\": \"https://example.com/schemas/customer\",
+                                 \"type\": \"object\",
+                                 \"properties\": {
+                                   \"first_name\": { \"$ref\": \"#/$defs/name\" },
+                                   \"last_name\": { \"$ref\": \"#/$defs/unknown\" }
+                                 },
+                                 \"$defs\": {
+                                   \"name\": { \"type\": \"string\" }
+                                 }
+                               }")))
+    (5am:is (eq (cl-jschema:get-schema "https://example.com#/$defs/name")
+                ;; The path to the inner schema object
+                (gethash "name" (cl-jschema::defs schema-customer))))
+    ;; The $ref for last_name can't be resolved, so last_name is not validated
+    (valid-json schema-customer
+                "{\"first_name\": \"Willy\", \"last_name\": \"Wonka\"}"
+                "{\"first_name\": \"Willy\", \"last_name\": 42}")
+    ;;
+    (invalid-json schema-customer "{\"first_name\": 42, \"last_name\": 42}"
+                  (expected-message "$.first_name" "type" "string"))))
+
+
+(cl-jschema-test :defs-anonymous-schema-test
+  (let (schema-customer)
+    (5am:finishes
+      (setq schema-customer
+            (cl-jschema:parse "{
+                                 \"type\": \"object\",
+                                 \"properties\": {
+                                   \"first_name\": { \"$ref\": \"#/$defs/name\" },
+                                   \"last_name\": { \"$ref\": \"#/$defs/unknown\" }
+                                 },
+                                 \"$defs\": {
+                                   \"name\": { \"type\": \"string\" }
+                                 }
+                               }")))
+    ;; The schema had no root $id, so nothing was registered
+    (5am:is (null (cl-jschema:get-schema "https://example.com#/$defs/name")))
+    ;; Because nothing was registered, the properties aren't validated
+    (valid-json schema-customer
+                "{\"first_name\": \"Willy\", \"last_name\": \"Wonka\"}"
+                "{\"first_name\": 42, \"last_name\": 42}")))
+
+
 (cl-jschema-test :invalid-schemas-test
   (dolist (data '(("{\"type\":\"jorl\"}"
                    "Type \"jorl\" is not allowed")
@@ -1225,6 +1274,8 @@ $.billing_address.city : Not of type \"string\"")))
                    "Keyword $ref expects a URI")
                   ("{\"$ref\":\"\"}"
                    "Keyword $ref expects a URI")
+                  ("{\"$defs\":42}"
+                   "Keyword $defs expects a JSON object with schema values")
                   ("{\"type\":42}"
                    "The value for \"type\" must be a string or an array")
                   ("{\"minLength\":\"2\"}"
