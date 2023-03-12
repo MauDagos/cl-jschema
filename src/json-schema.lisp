@@ -121,7 +121,7 @@ slots, based on the INPUT-SPEC."
 
 (defmethod print-object ((schema json-logical-schema) stream)
   (print-unreadable-object (schema stream :type t :identity t)
-    (format stream "~a"
+    (format stream "~s"
             (operator schema))))
 
 
@@ -163,4 +163,12 @@ slots, based on the INPUT-SPEC."
            :reader anchor)
    (schema-spec :initarg :schema-spec
                 :initform nil
-                :reader schema-spec)))
+                :reader schema-spec
+                :documentation "The actual spec to validate values against. Can
+                                be T, NIL or a 'JSON-SCHEMA-SPEC.")))
+
+
+(defmethod print-object ((schema json-schema) stream)
+  (print-unreadable-object (schema stream :type t :identity t)
+    (format stream "~s"
+            (id schema))))
