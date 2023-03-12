@@ -68,6 +68,20 @@
   `(or json-boolean hash-table))
 
 
+(defun json-true-schema-p (json-schema)
+  (json-true-p (schema-spec json-schema)))
+
+(deftype json-true-schema ()
+  `(and json-schema (satisfies json-true-schema-p)))
+
+
+(defun json-false-schema-p (json-schema)
+  (json-false-p (schema-spec json-schema)))
+
+(deftype json-false-schema ()
+  `(and json-schema (satisfies json-false-schema-p)))
+
+
 ;;; Others / helpers
 
 (deftype string-or-array-of-strings ()
@@ -88,11 +102,18 @@
   `(and string))
 
 
-(defun uri-reference-without-fragment-p (value)
+
+(defun uri-reference-p (value)
   (and (stringp value)
        (plusp (length value))
-       (alexandria:when-let ((uri (ignore-errors (puri:parse-uri value))))
-         (null (puri:uri-fragment uri)))))
+       (not (null (ignore-errors (puri:parse-uri value))))))
+
+(deftype uri-reference ()
+  `(satisfies uri-reference-p))
+
+
+(defun uri-reference-without-fragment-p (value)
+  (null (puri:uri-fragment (puri:parse-uri value))))
 
 (deftype uri-reference-without-fragment ()
-  `(satisfies uri-reference-without-fragment-p))
+  `(and uri-reference (satisfies uri-reference-without-fragment-p)))

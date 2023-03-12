@@ -9,6 +9,7 @@
     ;; schema identification
     ("$id"     . uri-reference-without-fragment)
     ("$anchor" . string)
+    ("$ref"    . uri-reference)
     ;; annotations
     ("title"       . string)
     ("description" . string)
@@ -182,6 +183,8 @@ validated must satisfy and keywords which map to the type.")
      . "Keyword ~a expects a string")
     (regex
      . "Keyword ~a expects a regular expression")
+    (uri-reference
+     . "Keyword ~a expects a URI")
     (uri-reference-without-fragment
      . "Keyword ~a expects a URI without a fragment")
     (number

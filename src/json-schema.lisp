@@ -152,7 +152,10 @@ slots, based on the INPUT-SPEC."
 ;;; Exported JSON Schema object
 
 (defclass json-schema ()
-  ((schema :initarg :schema
+  ((base-uri :initarg :base-uri
+             :initform nil
+             :reader base-uri)
+   (schema :initarg :schema
            :initform *$schema*
            :reader schema)
    (id :initarg :id
@@ -161,6 +164,9 @@ slots, based on the INPUT-SPEC."
    (anchor :initarg :anchor
            :initform nil
            :reader anchor)
+   (ref :initarg :ref
+        :initform nil
+        :reader ref)
    (schema-spec :initarg :schema-spec
                 :initform nil
                 :reader schema-spec

@@ -1104,6 +1104,108 @@ $ : Property \"department\" is not allowed")))
                           "properties"))))))
 
 
+(cl-jschema-test :ref-test
+  (let ((schema-address
+          (cl-jschema:parse "{
+                               \"$id\": \"https://example.com/schemas/address\",
+                               \"type\": \"object\",
+                               \"properties\": {
+                                 \"street_address\": { \"type\": \"string\" },
+                                 \"city\": { \"type\": \"string\" },
+                                 \"state\": { \"type\": \"string\" }
+                               },
+                               \"required\": [\"street_address\", \"city\", \"state\"]
+                             }"))
+        schema-customer)
+    (5am:finishes
+      (setq schema-customer
+            (cl-jschema:parse "{
+                                 \"$id\": \"https://example.com/schemas/customer\",
+                                 \"type\": \"object\",
+                                 \"properties\": {
+                                   \"first_name\": { \"type\": \"string\" },
+                                   \"last_name\": { \"type\": \"string\" },
+                                   \"shipping_address\": { \"$ref\": \"/schemas/address\" },
+                                   \"billing_address\": { \"$ref\": \"/schemas/address\" }
+                                 },
+                                 \"required\": [\"first_name\", \"last_name\", \"shipping_address\", \"billing_address\"]
+                               }")))
+    (5am:is (eq (cl-jschema:get-schema "https://example.com/schemas/address")
+                schema-address))
+    (5am:is (eq (cl-jschema:get-schema "https://example.com/schemas/customer")
+                schema-customer))
+    (valid-json schema-customer "{
+                                   \"first_name\": \"Willy\",
+                                   \"last_name\": \"Wonka\",
+                                   \"shipping_address\": {\"street_address\": \"St. Willy\", \"city\": \"Wonka City\", \"state\": \"Wonk\"},
+                                   \"billing_address\": {\"street_address\": \"St. Willy\", \"city\": \"Wonka City\", \"state\": \"Wonk\"}
+                                 }")
+    (invalid-json schema-customer "{
+                                     \"first_name\": \"Willy\",
+                                     \"last_name\": \"Wonka\",
+                                     \"shipping_address\": {\"street_address\": 42, \"city\": \"Wonka City\", \"state\": \"Wonk\"},
+                                     \"billing_address\": {\"street_address\": \"St. Willy\", \"city\": 42, \"state\": \"Wonk\"}
+                                   }"
+                  "JSON Schema validation found these errors:
+
+$.shipping_address.street_address : Not of type \"string\"
+
+$.billing_address.city : Not of type \"string\"")))
+
+
+(cl-jschema-test :ref-anonymous-schema-test
+  (let ((schema-address
+          (cl-jschema:parse "{
+                               \"$id\": \"https://example.com/schemas/address\",
+                               \"type\": \"object\",
+                               \"properties\": {
+                                 \"street_address\": { \"type\": \"string\" },
+                                 \"city\": { \"type\": \"string\" },
+                                 \"state\": { \"type\": \"string\" }
+                               },
+                               \"required\": [\"street_address\", \"city\", \"state\"]
+                             }"))
+        schema-customer)
+    (5am:finishes
+      (setq schema-customer
+            (cl-jschema:parse "{
+                                 \"type\": \"object\",
+                                 \"properties\": {
+                                   \"first_name\": { \"type\": \"string\" },
+                                   \"last_name\": { \"type\": \"string\" },
+                                   \"shipping_address\": { \"$ref\": \"https://example.com/schemas/address\" },
+                                   \"billing_address\": { \"$ref\": \"/schemas/address\" }
+                                 },
+                                 \"required\": [\"first_name\", \"last_name\", \"shipping_address\", \"billing_address\"]
+                               }")))
+    (5am:is (eq (cl-jschema:get-schema "https://example.com/schemas/address")
+                schema-address))
+    ;; The schema has no root $id, so it's not registered
+    (5am:is (null (cl-jschema:get-schema "https://example.com/schemas/customer")))
+    ;; Since the billing_address $ref can't be resolved, then billing_address
+    ;; can't be validated.
+    (valid-json schema-customer
+                "{
+                   \"first_name\": \"Willy\",
+                   \"last_name\": \"Wonka\",
+                   \"shipping_address\": {\"street_address\": \"St. Willy\", \"city\": \"Wonka City\", \"state\": \"Wonk\"},
+                   \"billing_address\": {\"street_address\": \"St. Willy\", \"city\": \"Wonka City\", \"state\": \"Wonk\"}
+                 }"
+                "{
+                   \"first_name\": \"Willy\",
+                   \"last_name\": \"Wonka\",
+                   \"shipping_address\": {\"street_address\": \"St. Willy\", \"city\": \"Wonka City\", \"state\": \"Wonk\"},
+                   \"billing_address\": 42
+                 }")
+    (invalid-json schema-customer "{
+                                     \"first_name\": \"Willy\",
+                                     \"last_name\": \"Wonka\",
+                                     \"shipping_address\": {\"street_address\": 42, \"city\": \"Wonka City\", \"state\": \"Wonk\"},
+                                     \"billing_address\": {\"street_address\": \"St. Willy\", \"city\": 42, \"state\": \"Wonk\"}
+                                   }"
+                  (expected-message "$.shipping_address.street_address" "type" "string"))))
+
+
 (cl-jschema-test :invalid-schemas-test
   (dolist (data '(("{\"type\":\"jorl\"}"
                    "Type \"jorl\" is not allowed")
@@ -1119,6 +1221,10 @@ $ : Property \"department\" is not allowed")))
                    "Keyword $id expects a URI without a fragment")
                   ("{\"$anchor\":42}"
                    "Keyword $anchor expects a string")
+                  ("{\"$ref\":42}"
+                   "Keyword $ref expects a URI")
+                  ("{\"$ref\":\"\"}"
+                   "Keyword $ref expects a URI")
                   ("{\"type\":42}"
                    "The value for \"type\" must be a string or an array")
                   ("{\"minLength\":\"2\"}"

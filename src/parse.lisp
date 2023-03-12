@@ -241,11 +241,12 @@ If successful, also remove the KEYWORD from the JSON-OBJECT."
 
 
 (defun make-json-schema (json &key rootp)
-  (multiple-value-bind (schema id anchor)
+  (multiple-value-bind (schema id anchor ref)
       (when (typep json 'hash-table)
         (values (gethash "$schema" json)
                 (gethash "$id" json)
-                (gethash "$anchor" json)))
+                (gethash "$anchor" json)
+                (gethash "$ref" json)))
     (when (and schema (not rootp))
       (error 'invalid-schema
              :format-control "$schema is only allowed at the root level"))
@@ -257,8 +258,14 @@ If successful, also remove the KEYWORD from the JSON-OBJECT."
                                      (parse-keyword-value "$schema" schema json))
                            :id (when id
                                  (parse-keyword-value "$id" id json))
+                           ;; Parse the root $id after the call to
+                           ;; 'PARSE-KEYWORD-VALUE for $id, so we're sure that
+                           ;; the root $id is valid
+                           :base-uri (puri:parse-uri *root-id*)
                            :anchor (when anchor
                                      (parse-keyword-value "$anchor" anchor json))
+                           :ref (when ref
+                                  (parse-keyword-value "$ref" ref json))
                            :schema-spec (make-schema-spec json))))
       (when (and schema (not (equal schema *$schema*)))
         (warn "No defined support for schema ~s. The schema will be treated as ~

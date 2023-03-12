@@ -182,7 +182,7 @@ INVALID-JSON was triggered."
                (alexandria:when-let ((object-value (gethash key value)))
                  (with-registered-json-path (:key key)
                    (with-tracked-property value key
-                     (validate-schema json-schema object-value)))))
+                     (check-schema json-schema object-value)))))
              properties)))
 
 
@@ -193,7 +193,7 @@ INVALID-JSON was triggered."
                (declare (ignore object-value))
                (with-registered-json-path (:key object-key)
                  (with-tracked-property value object-key
-                   (validate-schema property-names object-key))))
+                   (check-schema property-names object-key))))
              value)))
 
 
@@ -205,7 +205,7 @@ INVALID-JSON was triggered."
                           (when (ppcre:scan (regex regex-box) object-key)
                             (with-registered-json-path (:key object-key)
                               (with-tracked-property value object-key
-                                (validate-schema schema object-value)))))
+                                (check-schema schema object-value)))))
                         value))
              pattern-properties)))
 
@@ -233,7 +233,7 @@ INVALID-JSON was triggered."
   (when (typep value 'hash-table)
     (maphash (lambda (dependent schema)
                (when (gethash dependent value)
-                 (validate-schema schema value)))
+                 (check-schema schema value)))
              dependent-schemas)))
 
 
@@ -259,7 +259,7 @@ INVALID-JSON was triggered."
       for index from 0
       for json-schema in prefix-items
       do (with-registered-json-path (:index index)
-           (validate-schema json-schema item)))))
+           (check-schema json-schema item)))))
 
 
 (defmethod check-type-property ((keyword (eql :|minItems|))
@@ -305,13 +305,12 @@ INVALID-JSON was triggered."
   ;; At this point, the value must've already been validated to be a JSON
   ;; object, so no need to gaurd against it not being one.
   (let ((properties (get-type-property object-schema "properties"))
-        (additional-properties (schema-spec
-                                (additional-properties object-schema))))
+        (additional-properties (additional-properties object-schema)))
     (etypecase additional-properties
       ;; True: allow everything.
-      (json-true)
+      (json-true-schema)
       ;; False: don't allow any additional.
-      (json-false
+      (json-false-schema
        (let ((available-props (alexandria:hash-table-keys properties)))
          (maphash (lambda (key val)
                     (declare (ignore val))
@@ -319,41 +318,40 @@ INVALID-JSON was triggered."
                         (raise-invalid-json "additionalProperties" key)))
                   json-object)))
       ;; Schema: only allow additional if they're valid.
-      (json-schema-spec
+      (json-schema
        (let ((available-props (alexandria:hash-table-keys properties)))
          (maphash (lambda (key val)
                     (or (member key available-props :test 'equal)
                         (with-registered-json-path (:key key)
                           (with-tracked-property json-object key
-                            (validate-schema-spec additional-properties val)))))
+                            (check-schema additional-properties val)))))
                   json-object))))))
 
 
 (defun check-unevaluated-properties (object-schema json-object)
   ;; At this point, the value must've already been validated to be a JSON
   ;; object, so no need to gaurd against it not being one.
-  (let* ((unevaluated-properties (schema-spec
-                                  (unevaluated-properties object-schema)))
+  (let* ((unevaluated-properties (unevaluated-properties object-schema))
          (evaluated-properties (gethash json-object *evaluated-properties-map*))
          (validated-properties (set-difference (car evaluated-properties)
                                                (cdr evaluated-properties)
                                                :test 'equal)))
     (etypecase unevaluated-properties
       ;; True: allow all.
-      (json-true)
+      (json-true-schema)
       ;; False: don't allow any unevaluated.
-      (json-false
+      (json-false-schema
        (maphash (lambda (key val)
                   (declare (ignore val))
                   (or (member key validated-properties :test 'equal)
                       (raise-invalid-json "additionalProperties" key)))
                 json-object))
       ;; Schema: only allow unevaluated if they're valid.
-      (json-schema-spec
+      (json-schema
        (maphash (lambda (key val)
                   (or (member key validated-properties :test 'equal)
                       (with-registered-json-path (:key key)
-                        (validate-schema-spec unevaluated-properties val))))
+                        (check-schema unevaluated-properties val))))
                 json-object)))))
 
 
@@ -361,12 +359,12 @@ INVALID-JSON was triggered."
   ;; At this point, the value must've already been validated to be a JSON
   ;; array, so no need to gaurd against it not being one.
   (let* ((prefix-items (get-type-property array-schema "prefixItems"))
-         (items (schema-spec (items array-schema))))
+         (items (items array-schema)))
     (etypecase items
       ;; True: allow everything.
-      (json-true)
+      (json-true-schema)
       ;; False: don't allow any additional if prefixItems was set.
-      (json-false
+      (json-false-schema
        (when (and prefix-items
                   (> (length json-array)
                      (length prefix-items)))
@@ -374,14 +372,14 @@ INVALID-JSON was triggered."
       ;; Schema has two cases:
       ;; If prefixItems was set: check that additional items are valid.
       ;; Else: check that all items are valid
-      (json-schema-spec
+      (json-schema
        (let* ((start (if prefix-items
                          (length prefix-items)
                          0))
               (index start))
          (maparray (lambda (item)
                      (with-registered-json-path (:index index)
-                       (validate-schema-spec items item))
+                       (check-schema items item))
                      (incf index))
                    json-array
                    :start start))))))
@@ -395,7 +393,7 @@ INVALID-JSON was triggered."
           (max-contains (max-contains array-schema))
           (valid-count 0))
       (maparray (lambda (item)
-                  (when (with-valid-json-p (validate-schema contains item))
+                  (when (with-valid-json-p (check-schema contains item))
                     (incf valid-count)
                     (when (and max-contains (> valid-count max-contains))
                       (raise-invalid-json "maxContains" max-contains))))
@@ -433,11 +431,11 @@ INVALID-JSON was triggered."
         (then-schema (gethash "then" condition-schemas))
         (else-schema (gethash "else" condition-schemas)))
     (when if-schema
-      (if (with-valid-json-p (validate-schema if-schema value))
+      (if (with-valid-json-p (check-schema if-schema value))
           (when then-schema
-            (validate-schema then-schema value))
+            (check-schema then-schema value))
           (when else-schema
-            (validate-schema else-schema value))))))
+            (check-schema else-schema value))))))
 
 
 (defmethod check-logical-schema ((logical-schema json-logical-schema) value)
@@ -450,7 +448,7 @@ INVALID-JSON was triggered."
                ("not"   'notany))))
     (or (funcall fn
                  (lambda (schema)
-                   (with-valid-json-p (validate-schema schema value)))
+                   (with-valid-json-p (check-schema schema value)))
                  schemas)
         (raise-invalid-json operator))))
 
@@ -460,7 +458,7 @@ INVALID-JSON was triggered."
     (check-logical-schema logical-schema value)))
 
 
-(defun validate-schema-spec (schema-spec value)
+(defun check-schema-spec (schema-spec value)
   (etypecase schema-spec
     (json-true)
     (json-false
@@ -476,8 +474,26 @@ INVALID-JSON was triggered."
        (check-type-schema type-schema value)))))
 
 
-(defun validate-schema (json-schema value)
-  (validate-schema-spec (schema-spec json-schema) value))
+(defun check-schema-ref (json-schema value)
+  (alexandria:when-let ((ref (ref json-schema)))
+    (let* ((base-uri (base-uri json-schema))
+           (ref-schema (or
+                        ;; $ref might be resolvable on its own
+                        (get-schema ref)
+                        ;; if not, then resolve against the base URI, if any
+                        (when base-uri
+                          ;; Get the reference URI by setting $ref as the
+                          ;; path in the base URI
+                          (let ((ref-uri (puri:copy-uri base-uri)))
+                            (setf (puri:uri-path ref-uri) ref)
+                            (get-schema (puri:render-uri ref-uri nil)))))))
+      (when ref-schema
+        (check-schema ref-schema value)))))
+
+
+(defun check-schema (json-schema value)
+  (check-schema-ref json-schema value)
+  (check-schema-spec (schema-spec json-schema) value))
 
 
 ;;; Entrypoints
@@ -491,7 +507,7 @@ INVALID-JSON was triggered."
                        (unless *inside-call-with-valid-json-p*
                          (track-invalid-json-error invalid-json-condition e)
                          (invoke-restart 'continue-validating)))))
-      (validate-schema json-schema value))
+      (check-schema json-schema value))
     (when (invalid-json-errors invalid-json-condition)
       (error invalid-json-condition))
     t))
