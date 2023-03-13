@@ -1,25 +1,18 @@
 (in-package :cl-jschema)
 
 
-;;; TODO: switch to JSON Pointer
-;;; Keeping track of JSON path while validating
+;;; Keeping track of JSON Pointer while validating
 
-(defvar *json-path*)
+(defvar *json-pointer*)
 
 
-(defun call-with-registered-json-path (body-fn &key key index)
-  (let* ((path (cond
-                 (key (format nil ".~a" key))
-                 (index (format nil "[~d]" index))))
-         (*json-path* (cons path *json-path*)))
+(defun call-with-registered-json-pointer (key-or-index body-fn)
+  (let ((*json-pointer* (cons key-or-index *json-pointer*)))
     (funcall body-fn)))
 
 
-(defmacro with-registered-json-path ((&key key index) &body body)
-  (assert (alexandria:xor key index))
-  `(call-with-registered-json-path (lambda () ,@body)
-                                   :key ,key
-                                   :index ,index))
+(defmacro with-registered-json-pointer (key-or-index &body body)
+  `(call-with-registered-json-pointer ,key-or-index (lambda () ,@body)))
 
 
 ;;; Handling conditions
@@ -27,8 +20,8 @@
 (define-condition invalid-json (error)
   ((error-message :initarg :error-message
                   :reader invalid-json-error-message)
-   (json-path :initarg :json-path
-              :reader invalid-json-path)
+   (json-pointer :initarg :json-pointer
+                 :reader invalid-json-pointer)
    (errors :initarg :errors
            :initform nil
            :accessor invalid-json-errors))
@@ -37,8 +30,8 @@
                (format stream "JSON Schema validation found these errors:~
                                ~{~2%~a~^~}"
                        errors)
-               (format stream "~a : ~a"
-                       (invalid-json-path condition)
+               (format stream "~s : ~a"
+                       (invalid-json-pointer condition)
                        (invalid-json-error-message condition))))))
 
 
@@ -54,7 +47,7 @@
     (with-simple-restart (continue-validating "Continue validating the JSON")
       (error 'invalid-json
              :error-message (format nil format-message value)
-             :json-path (apply 'concatenate 'string (reverse *json-path*))))))
+             :json-pointer (format nil "~{/~a~^~}" (reverse *json-pointer*))))))
 
 
 (defvar *inside-call-with-valid-json-p* nil)
@@ -180,7 +173,7 @@ INVALID-JSON was triggered."
   (when (typep value 'hash-table)
     (maphash (lambda (key json-schema)
                (alexandria:when-let ((object-value (gethash key value)))
-                 (with-registered-json-path (:key key)
+                 (with-registered-json-pointer key
                    (with-tracked-property value key
                      (check-schema json-schema object-value)))))
              properties)))
@@ -191,7 +184,7 @@ INVALID-JSON was triggered."
   (when (typep value 'hash-table)
     (maphash (lambda (object-key object-value)
                (declare (ignore object-value))
-               (with-registered-json-path (:key object-key)
+               (with-registered-json-pointer object-key
                  (with-tracked-property value object-key
                    (check-schema property-names object-key))))
              value)))
@@ -203,7 +196,7 @@ INVALID-JSON was triggered."
     (maphash (lambda (regex-box schema)
                (maphash (lambda (object-key object-value)
                           (when (ppcre:scan (regex regex-box) object-key)
-                            (with-registered-json-path (:key object-key)
+                            (with-registered-json-pointer object-key
                               (with-tracked-property value object-key
                                 (check-schema schema object-value)))))
                         value))
@@ -258,7 +251,7 @@ INVALID-JSON was triggered."
       for item across value
       for index from 0
       for json-schema in prefix-items
-      do (with-registered-json-path (:index index)
+      do (with-registered-json-pointer index
            (check-schema json-schema item)))))
 
 
@@ -322,7 +315,7 @@ INVALID-JSON was triggered."
        (let ((available-props (alexandria:hash-table-keys properties)))
          (maphash (lambda (key val)
                     (or (member key available-props :test 'equal)
-                        (with-registered-json-path (:key key)
+                        (with-registered-json-pointer key
                           (with-tracked-property json-object key
                             (check-schema additional-properties val)))))
                   json-object))))))
@@ -350,7 +343,7 @@ INVALID-JSON was triggered."
       (json-schema
        (maphash (lambda (key val)
                   (or (member key validated-properties :test 'equal)
-                      (with-registered-json-path (:key key)
+                      (with-registered-json-pointer key
                         (check-schema unevaluated-properties val))))
                 json-object)))))
 
@@ -378,7 +371,7 @@ INVALID-JSON was triggered."
                          0))
               (index start))
          (maparray (lambda (item)
-                     (with-registered-json-path (:index index)
+                     (with-registered-json-pointer index
                        (check-schema items item))
                      (incf index))
                    json-array
@@ -503,7 +496,7 @@ INVALID-JSON was triggered."
 ;;; Entrypoints
 
 (defmethod validate ((json-schema json-schema) value)
-  (let ((*json-path* '("$"))
+  (let ((*json-pointer* '())
         (*evaluated-properties-map* (make-hash-table :test 'eq))
         (invalid-json-condition (make-condition 'invalid-json)))
     (handler-bind ((invalid-json

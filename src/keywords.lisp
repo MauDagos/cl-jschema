@@ -276,4 +276,5 @@ a parameter.")
 
 
 (defun keyword-validation-message (keyword)
-  (cdr (assoc keyword *validation-error-messages* :test 'equal)))
+  (or (cdr (assoc keyword *validation-error-messages* :test 'equal))
+      (error "No validation message for keyword ~s" keyword)))

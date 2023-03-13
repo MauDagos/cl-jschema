@@ -13,5 +13,5 @@
            #:not-implemented
            #:invalid-json
            #:invalid-json-error-message
-           #:invalid-json-path
+           #:invalid-json-pointer
            #:invalid-json-errors))
