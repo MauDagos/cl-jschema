@@ -6,7 +6,7 @@
            #:validate
            #:clear-registry
            #:get-schema
-           ;; JSON Schema
+           ;; JSON Schema object
            #:json-schema
            ;; Conditions
            #:invalid-schema

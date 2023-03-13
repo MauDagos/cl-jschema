@@ -5,6 +5,7 @@
 
 
 (defun check-type-value (value)
+  "Check if the value for 'type' is allowed."
   (flet ((%check (val)
            (or (type-spec val)
                (error 'invalid-schema
@@ -28,7 +29,7 @@
       ((typep value type))
       (t
        (error 'invalid-schema
-              :format-control (type-error-message type)
+              :format-control (type-error-format-string type)
               :format-arguments (list keyword))))
     t))
 
@@ -71,6 +72,8 @@
 
 
 (defun parse-pattern-properties (json-object)
+  "Parse 'patternProperties'. In this case, the keywords are regexs and the
+values of JSON Schemas."
   (let ((properties (make-hash-table :test 'eq)))
     (maphash (lambda (key value)
                (let ((regex (parse-regex key)))
@@ -129,6 +132,8 @@ If successful, also remove the KEYWORD from the JSON-OBJECT."
 
 
 (defun check-colliding-type-keywords (type-properties)
+  "Check if any of the keywords in TYPE-PROPERTIES refer to different types of
+JSON values."
   (let* ((props (alexandria:hash-table-values type-properties))
          (type-prop (find "type" props :key 'key :test 'equal))
          (type (when type-prop (value type-prop)))
@@ -156,32 +161,34 @@ If successful, also remove the KEYWORD from the JSON-OBJECT."
 
 
 (defun make-type-schema (json-object)
-  ;; TODO: can we make checking for enum/const schema nicer?
-  (alexandria:when-let ((const-schema (make-const-schema json-object)))
-    (return-from make-type-schema const-schema))
-  (alexandria:when-let ((enum-schema (make-enum-schema json-object)))
-    (return-from make-type-schema enum-schema))
-  (let ((type-properties (make-hash-table :test 'equal)))
-    (dolist (keyword *type-keywords*)
-      (multiple-value-bind (value existsp)
-          (gethash keyword json-object)
-        (when existsp
-          (add-to-type-properites type-properties keyword
-                                  (parse-keyword-value keyword value json-object)))))
-    (check-colliding-type-keywords type-properties)
-    (let* ((type-prop (gethash :|type| type-properties))
-           (type (or (when type-prop (value type-prop))
-                     ;; If 'type' was unspecified, then infer it from other
-                     ;; keywords
-                     (loop
-                       for keyword-prop being the hash-values in type-properties
-                       thereis (type-for-keyword (key keyword-prop))))))
-      (when type
-        (make-instance (alexandria:switch (type :test 'equal)
-                         ("object" 'json-object-schema)
-                         ("array"  'json-array-schema)
-                         (t        'json-basic-type-schema))
-                       :type-properties type-properties)))))
+  (or
+   (make-const-schema json-object)
+   (make-enum-schema json-object)
+   (let ((type-properties (make-hash-table :test 'equal)))
+     ;; Populate the type-properties
+     (dolist (keyword *type-keywords*)
+       (multiple-value-bind (value existsp)
+           (gethash keyword json-object)
+         (when existsp
+           (add-to-type-properites keyword
+                                   (parse-keyword-value keyword value json-object)
+                                   type-properties))))
+     ;; Validate
+     (check-colliding-type-keywords type-properties)
+     ;; Return the correct instance
+     (let* ((type-prop (gethash :|type| type-properties))
+            (type (or (when type-prop (value type-prop))
+                      ;; If 'type' was unspecified, then infer it from other
+                      ;; keywords
+                      (loop
+                        for keyword-prop being the hash-values in type-properties
+                        thereis (type-for-keyword (key keyword-prop))))))
+       (when type
+         (make-instance (alexandria:switch (type :test 'equal)
+                          ("object" 'json-object-schema)
+                          ("array"  'json-array-schema)
+                          (t        'json-basic-type-schema))
+                        :type-properties type-properties))))))
 
 
 (defun make-annotations (json-object)

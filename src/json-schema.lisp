@@ -9,9 +9,12 @@
 
 (defclass regex-box ()
   ((regex-string :initarg :regex-string
-                 :reader regex-string)
+                 :reader regex-string
+                 :documentation "The original regex from the JSON Schema.")
    (regex :initarg :regex
-          :reader regex)))
+          :reader regex
+          :documentation "A CL-PPCRE scanner."))
+  (:documentation "A class to encapsulate a regex with it's scanner."))
 
 
 ;;; Enum
@@ -19,7 +22,9 @@
 (defclass enum-schema ()
   ((items :initarg :items
           :initform nil
-          :reader items)))
+          :reader items
+          :documentation "The list of valid JSON values."))
+  (:documentation "A class to represent an enum JSON Schema."))
 
 
 ;;; Const
@@ -27,25 +32,35 @@
 (defclass const-schema ()
   ((const :initarg :const
           :initform nil
-          :reader const)))
+          :reader const
+          :documentation "The only valid JSON value."))
+  (:documentation "A class to represent a const JSON Schema."))
 
 
 ;;; Schema per "type" keyword
 
 (defclass json-schema-type-property ()
   ((key :initarg :key
-        :reader key)
+        :reader key
+        :documentation "The original keyword from the JSON Schema.")
    (value :initarg :value
-          :reader value)))
+          :reader value
+          :documentation "The parsed JSON value from the JSON Schema."))
+  (:documentation "A class to represent a property of a JSON Schema."))
 
 
 (defclass json-type-schema ()
   ((type-properties :initarg :type-properties
                     :initform nil
-                    :reader type-properties)))
+                    :reader type-properties
+                    :documentation "A hash-table mapping JSON Schema keywords
+                                    (converted to CL keywords) to instances of
+                                    'JSON-SCHEMA-TYPE-PROPERTY."))
+  (:documentation "A class to represent the core of a JSON Schema for validating
+                   a value."))
 
 
-(defun add-to-type-properites (type-properties keyword value)
+(defun add-to-type-properites (keyword value type-properties)
   (setf (gethash (alexandria:make-keyword keyword) type-properties)
         (make-instance 'json-schema-type-property
                        :key keyword
@@ -60,7 +75,9 @@
             existsp)))
 
 
-(defclass json-basic-type-schema (json-type-schema) ())
+(defclass json-basic-type-schema (json-type-schema) ()
+  (:documentation "A class to represent a JSON Schema for validating 'basic'
+                   values (i.e. not JSON objects nor arrays)."))
 
 
 (defmethod sanitize-schema-object ((type-schema json-type-schema) input-spec)
@@ -78,9 +95,17 @@ slots, based on the INPUT-SPEC."
 
 (defclass json-object-schema (json-type-schema)
   ((additional-properties :initform (json-true-schema)
-                          :reader additional-properties)
+                          :reader additional-properties
+                          :documentation "An instance of a 'JSON-SCHEMA. Refers
+                                          to the value of the JSON Schema keyword
+                                          'additionalProperties'.")
    (unevaluated-properties :initform (json-true-schema)
-                           :reader unevaluated-properties)))
+                           :reader unevaluated-properties
+                           :documentation "An instance of a 'JSON-SCHEMA. Refers
+                                           to the value of the JSON Schema
+                                           keyword 'unevaluatedProperties'."))
+  (:documentation "A class to represent a JSON Schema for validating a JSON
+                   object."))
 
 
 (defmethod initialize-instance :after ((object-schema json-object-schema) &key)
@@ -92,13 +117,26 @@ slots, based on the INPUT-SPEC."
 
 (defclass json-array-schema (json-type-schema)
   ((items :initform (json-true-schema)
-          :reader items)
+          :reader items
+          :documentation "An instance of a 'JSON-SCHEMA. Refers to the value of
+                          the JSON Schema keyword 'items'.")
    (contains :initform nil
-             :reader contains)
+             :reader contains
+             :documentation "NIL or an instance of a 'JSON-SCHEMA. Refers to the
+                             value of the JSON Schema keyword 'contains', if
+                             specified.")
    (min-contains :initform nil
-                 :reader min-contains)
+                 :reader min-contains
+                 :documentation "NIL or an integer. Refers to the value of the
+                                 JSON Schema keyword 'minContains', if
+                                 specified.")
    (max-contains :initform nil
-                 :reader max-contains)))
+                 :reader max-contains
+                 :documentation "NIL or an integer. Refers to the value of the
+                                 JSON Schema keyword 'maxContains', if
+                                 specified."))
+  (:documentation "A class to represent a JSON Schema for validating a JSON
+                   array."))
 
 
 (defmethod initialize-instance :after ((array-schema json-array-schema) &key)
@@ -114,9 +152,13 @@ slots, based on the INPUT-SPEC."
 
 (defclass json-logical-schema ()
   ((operator :initarg :operator
-             :reader operator)
+             :reader operator
+             :documentation "The original keyword from the JSON Schema.")
    (schemas :initarg :schemas
-            :reader schemas)))
+            :reader schemas
+            :documentation "A list of instances of 'JSON-SCHEMA."))
+  (:documentation "A class to represent a combination of JSON Schemas with a
+                   logical operator."))
 
 
 (defmethod print-object ((schema json-logical-schema) stream)
@@ -130,23 +172,34 @@ slots, based on the INPUT-SPEC."
 (defclass json-schema-spec ()
   ((annotations :initarg :annotations
                 :initform nil
-                :reader annotations)
+                :reader annotations
+                :documentation "NIL or A hash-table of JSON Schema keywords
+                                mapped to values as parsed by JZON. These
+                                keywords are described as merely for annotation
+                                in the JSON Schema documentation.")
    (condition-schemas :initarg :condition-schemas
                       :initform nil
-                      :reader condition-schemas)
+                      :reader condition-schemas
+                      :documentation "NIL or a hash-table of JSON Schema keywords
+                                      mapped to instances of 'JSON-SCHEMA. For
+                                      'If-Then-Else' validation.")
    (logical-schemas :initarg :logical-schemas
                     :initform nil
-                    :reader logical-schemas)
+                    :reader logical-schemas
+                    :documentation "A list of instances of 'JSON-LOGICAL-SCHEMA.
+                                    For validating logical operators.")
    (type-schema :initarg :type-schema
                 :initform nil
-                :reader type-schema)
+                :reader type-schema
+                :documentation "NIL or an instance of type 'JSON-TYPE-SCHEMA,
+                                'ENUM-SCHEMA or 'CONST-SCHEMA. For validating
+                                incoming values.")
    (metadata :initarg :metadata
              :initform nil
-             :reader metadata)))
-
-
-(defun json-true-schema ()
-  (make-instance 'json-schema :schema-spec t))
+             :reader metadata
+             :documentation "NIL or a hash-table of keys to values as parsed by
+                             JZON. Here goes anything that's not part of the JSON
+                             Schema spec.")))
 
 
 ;;; Exported JSON Schema object
@@ -154,27 +207,44 @@ slots, based on the INPUT-SPEC."
 (defclass json-schema ()
   ((base-uri :initarg :base-uri
              :initform nil
-             :reader base-uri)
+             :reader base-uri
+             :documentation "NIL or an instance of 'PURI:URI. Refers to the base
+                             URI of the JSON Schema (see official JSON Schema
+                             documentation).")
    (schema :initarg :schema
            :initform *$schema*
-           :reader schema)
+           :reader schema
+           :documentation "The JSON Schema dialect (see official JSON Schema
+                           documentation).")
    (id :initarg :id
        :initform nil
-       :reader id)
+       :reader id
+       :documentation "NIL or the value of '$id' for this JSON Schema")
    (anchor :initarg :anchor
            :initform nil
-           :reader anchor)
+           :reader anchor
+           :documentation "NIL or the value of '$anchor' for this JSON Schema")
    (ref :initarg :ref
         :initform nil
-        :reader ref)
+        :reader ref
+        :documentation "NIL or the value of '$ref' for this JSON Schema")
    (defs :initarg :defs
          :initform nil
-         :reader defs)
+         :reader defs
+         :documentation "NIL or a hash-table of keys to instances of 'JSON-SCHEMA.")
    (schema-spec :initarg :schema-spec
                 :initform nil
                 :reader schema-spec
                 :documentation "The actual spec to validate values against. Can
                                 be T, NIL or a 'JSON-SCHEMA-SPEC.")))
+
+
+(defun json-true-schema ()
+  (make-instance 'json-schema :schema-spec t))
+
+
+(defun json-false-schema ()
+  (make-instance 'json-schema :schema-spec nil))
 
 
 (defmethod print-object ((schema json-schema) stream)

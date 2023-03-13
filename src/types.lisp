@@ -102,7 +102,6 @@
   `(and string))
 
 
-
 (defun uri-reference-p (value)
   (and (stringp value)
        (plusp (length value))

@@ -2,7 +2,9 @@
 
 
 ;;; Keeping track of JSON Pointer while validating
-
+;;;
+;;; A list of JSON keys or indexes, for keeping track of where we are inside the
+;;; value being validated.
 (defvar *json-pointer*)
 
 
@@ -12,6 +14,7 @@
 
 
 (defmacro with-registered-json-pointer (key-or-index &body body)
+  "Register KEY-OR-INDEX as the next level inside the VALUE being validated."
   `(call-with-registered-json-pointer ,key-or-index (lambda () ,@body)))
 
 
@@ -40,7 +43,10 @@
 
 
 (defun raise-invalid-json (keyword &optional value)
-  (let ((format-message (keyword-validation-message
+  "Raise an 'INVALID-JSON condition.
+
+Also create an restart named 'CONTINUE-VALIDATING."
+  (let ((format-message (keyword-validation-format-string
                          ;; Keywords from 'CHECK-TYPE-PROPERTY are arriving as
                          ;; Lisp keywords, so convert them back to strings.
                          (string keyword))))
@@ -50,7 +56,8 @@
              :json-pointer (format nil "~{/~a~^~}" (reverse *json-pointer*))))))
 
 
-(defvar *inside-call-with-valid-json-p* nil)
+(defvar *inside-call-with-valid-json-p* nil
+  "Helper variable for knowing if we're inside a usage of WITH-VALID-JSON-P.")
 
 
 (defun call-with-valid-json-p (body-fn)
@@ -92,6 +99,8 @@ INVALID-JSON was triggered."
 
 
 (defmacro with-tracked-property (json-object keyword &body body)
+  "Track KEYWORD as having been evaluated for JSON-OBJECT. Also tracks if
+KEYWORD is somehow invalid."
   `(call-with-tracked-property ,json-object ,keyword (lambda () ,@body)))
 
 
@@ -99,12 +108,14 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|type|))
                                 type value)
+  "Check VALUE by 'type' for TYPE."
   (flet ((%check (type)
            (let ((spec (type-spec type)))
              (or (typep value (type-spec-lisp-type spec))
                  (raise-invalid-json keyword type)))))
     (etypecase type
-      (string (%check type))
+      (string
+       (%check type))
       (list
        (or (some (lambda (type*)
                    (with-valid-json-p (%check type*)))
@@ -114,6 +125,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|minLength|))
                                 min-length value)
+  "Check VALUE by 'minLength' for MIN-LENGTH."
   (when (stringp value)
     (or (>= (length value) min-length)
         (raise-invalid-json keyword min-length))))
@@ -121,6 +133,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|maxLength|))
                                 max-length value)
+  "Check VALUE by 'maxLength' for MAX-LENGTH."
   (when (stringp value)
     (or (<= (length value) max-length)
         (raise-invalid-json keyword max-length))))
@@ -128,6 +141,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|pattern|))
                                 pattern value)
+  "Check VALUE by 'pattern' for PATTERN."
   (when (stringp value)
     (or (ppcre:scan (regex pattern) value)
         (raise-invalid-json keyword (regex-string pattern)))))
@@ -135,6 +149,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|multipleOf|))
                                 multiple-of value)
+  "Check VALUE by 'multipleOf' for MULTIPLE-OF."
   (when (numberp value)
     (or (zerop (mod value multiple-of))
         (raise-invalid-json keyword multiple-of))))
@@ -142,6 +157,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|minimum|))
                                 minimum value)
+  "Check VALUE by 'minimum' by MINIMUM."
   (when (numberp value)
     (or (>= value minimum)
         (raise-invalid-json keyword minimum))))
@@ -149,6 +165,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|exclusiveMinimum|))
                                 exclusive-minimum value)
+  "Check VALUE by 'exclusiveMinimum' by EXCLUSIVE-MINIMUM."
   (when (numberp value)
     (or (> value exclusive-minimum)
         (raise-invalid-json keyword exclusive-minimum))))
@@ -156,6 +173,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|maximum|))
                                 maximum value)
+  "Check VALUE by 'maximum' by MAXIMUM."
   (when (numberp value)
     (or (<= value maximum)
         (raise-invalid-json keyword maximum))))
@@ -163,6 +181,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|exclusiveMaximum|))
                                 exclusive-maximum value)
+  "Check VALUE by 'exclusiveMaximum' by EXCLUSIVE-MAXIMUM."
   (when (numberp value)
     (or (< value exclusive-maximum)
         (raise-invalid-json keyword exclusive-maximum))))
@@ -170,6 +189,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|properties|))
                                 properties value)
+  "Check VALUE by 'properties' for JSON Schemas in PROPERTIES."
   (when (typep value 'hash-table)
     (maphash (lambda (key json-schema)
                (alexandria:when-let ((object-value (gethash key value)))
@@ -181,6 +201,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|propertyNames|))
                                 property-names value)
+  "Check VALUE by 'propertyNames' for JSON Schemas in PROPERTY-NAMES."
   (when (typep value 'hash-table)
     (maphash (lambda (object-key object-value)
                (declare (ignore object-value))
@@ -192,6 +213,8 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|patternProperties|))
                                 pattern-properties value)
+  "Check VALUE by 'patternProperties' for regexs and JSON Schemas in
+PATTERN-PROPERTIES."
   (when (typep value 'hash-table)
     (maphash (lambda (regex-box schema)
                (maphash (lambda (object-key object-value)
@@ -205,6 +228,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|required|))
                                 required value)
+  "Check VALUE by 'required' for keys in REQUIRED."
   (when (and (typep value 'hash-table) required)
     (loop
       for field in required
@@ -214,6 +238,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|dependentRequired|))
                                 dependent-required value)
+  "Check VALUE by 'dependentRequired' for DEPENDENT-REQUIRED."
   (when (typep value 'hash-table)
     (maphash (lambda (dependent required)
                (when (gethash dependent value)
@@ -223,6 +248,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|dependentSchemas|))
                                 dependent-schemas value)
+  "Check VALUE by 'dependentSchemas' for JSON Schemas in DEPENDENT-SCHEMAS."
   (when (typep value 'hash-table)
     (maphash (lambda (dependent schema)
                (when (gethash dependent value)
@@ -232,6 +258,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|minProperties|))
                                 min-properties value)
+  "Check VALUE by 'minProperties' for MIN-PROPERTIES."
   (when (typep value 'hash-table)
     (or (>= (hash-table-count value) min-properties)
         (raise-invalid-json keyword min-properties))))
@@ -239,6 +266,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|maxProperties|))
                                 max-properties value)
+  "Check VALUE by 'maxProperties' for MAX-PROPERTIES."
   (when (typep value 'hash-table)
     (or (<= (hash-table-count value) max-properties)
         (raise-invalid-json keyword max-properties))))
@@ -246,6 +274,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|prefixItems|))
                                 prefix-items value)
+  "Check VALUE by 'prefixItems' for JSON Schemas in PREFIX-ITEMS."
   (when (typep value 'array)
     (loop
       for item across value
@@ -257,6 +286,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|minItems|))
                                 min-items value)
+  "Check VALUE by 'minItems' for MIN-ITEMS."
   (when (typep value 'array)
     (or (>= (length value) min-items)
         (raise-invalid-json keyword min-items))))
@@ -264,6 +294,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|maxItems|))
                                 max-items value)
+  "Check VALUE by 'maxItems' for MAX-ITEMS."
   (when (typep value 'array)
     (or (<= (length value) max-items)
         (raise-invalid-json keyword max-items))))
@@ -271,6 +302,7 @@ INVALID-JSON was triggered."
 
 (defmethod check-type-property ((keyword (eql :|uniqueItems|))
                                 unique-items value)
+  "Check VALUE by 'uniqueItems', if UNIQUE-ITEMS is 'true'"
   (when (and (typep value 'array)
              (json-true-p unique-items))
     (loop
@@ -285,16 +317,9 @@ INVALID-JSON was triggered."
         return (raise-invalid-json keyword))))
 
 
-(defun check-type-properties (type-schema value)
-  (alexandria:when-let ((type-properties (type-properties type-schema)))
-    (maphash (lambda (prop-keyword schema-prop)
-               (check-type-property prop-keyword
-                                    (value schema-prop)
-                                    value))
-             type-properties)))
-
-
 (defun check-additional-properties (object-schema json-object)
+  "Check if JSON-OBJECT fulfills the 'additionalProperties' JSON Schema in
+OBJECT-SCHEMA."
   ;; At this point, the value must've already been validated to be a JSON
   ;; object, so no need to gaurd against it not being one.
   (let ((properties (get-type-property object-schema "properties"))
@@ -322,6 +347,8 @@ INVALID-JSON was triggered."
 
 
 (defun check-unevaluated-properties (object-schema json-object)
+  "Check if JSON-OBJECT fulfills the 'unevaluatedProperties' JSON Schema in
+OBJECT-SCHEMA."
   ;; At this point, the value must've already been validated to be a JSON
   ;; object, so no need to gaurd against it not being one.
   (let* ((unevaluated-properties (unevaluated-properties object-schema))
@@ -349,6 +376,9 @@ INVALID-JSON was triggered."
 
 
 (defun check-items (array-schema json-array)
+  "Check if JSON-ARRAY fulfills the 'items' JSON Schema in ARRAY-SCHEMA.
+
+If 'prefixItems' was specified, then we only check items not covered by it."
   ;; At this point, the value must've already been validated to be a JSON
   ;; array, so no need to gaurd against it not being one.
   (let* ((prefix-items (get-type-property array-schema "prefixItems"))
@@ -379,6 +409,9 @@ INVALID-JSON was triggered."
 
 
 (defun check-contains (array-schema json-array)
+  "Check if JSON-ARRAY fulfills the 'contains' JSON Schema in ARRAY-SCHEMA.
+
+The values of 'minContains' and 'maxContains' are also respected."
   ;; At this point, the value must've already been validated to be a JSON
   ;; array, so no need to gaurd against it not being one.
   (alexandria:when-let ((contains (contains array-schema)))
@@ -396,30 +429,43 @@ INVALID-JSON was triggered."
 
 
 (defmethod check-type-schema ((const-schema const-schema) value)
+  "Check if VALUE is the item from CONST-SCHEMA."
   (or (json-equal value (const const-schema))
       (raise-invalid-json "const")))
 
 
 (defmethod check-type-schema ((enum-schema enum-schema) value)
+  "Check if VALUE is any item in ENUM-SCHEMA."
   (or (member value (items enum-schema) :test 'json-equal)
       (raise-invalid-json "enum")))
 
 
 (defmethod check-type-schema ((type-schema json-type-schema) value)
-  (check-type-properties type-schema value))
+  "Check if VALUE fulfills TYPE-SCHEMA by validating VALUE against all of the
+TYPE-SCHEMA properties."
+  (alexandria:when-let ((type-properties (type-properties type-schema)))
+    (maphash (lambda (prop-keyword schema-prop)
+               (check-type-property prop-keyword
+                                    (value schema-prop)
+                                    value))
+             type-properties)))
 
 
 (defmethod check-type-schema :after ((object-schema json-object-schema) value)
+  "Check if VALUE fulfills the additional object-type only validations."
   (check-additional-properties object-schema value)
   (check-unevaluated-properties object-schema value))
 
 
 (defmethod check-type-schema :after ((array-schema json-array-schema) value)
+  "Check if VALUE fulfills the additional array-type only validations."
   (check-items array-schema value)
   (check-contains array-schema value))
 
 
 (defun check-condition-schemas (condition-schemas value)
+  "Check if VALUE fulfills the conditional JSON Schemas, if there's an 'if'
+JSON Schema."
   (let ((if-schema   (gethash "if"   condition-schemas))
         (then-schema (gethash "then" condition-schemas))
         (else-schema (gethash "else" condition-schemas)))
@@ -432,6 +478,7 @@ INVALID-JSON was triggered."
 
 
 (defmethod check-logical-schema ((logical-schema json-logical-schema) value)
+  "Check if VALUE fulfills LOGICAL-SCHEMA."
   (let* ((operator (operator logical-schema))
          (schemas (schemas logical-schema))
          (fn (alexandria:switch (operator :test 'equal)
@@ -452,6 +499,7 @@ INVALID-JSON was triggered."
 
 
 (defun check-schema-spec (schema-spec value)
+  "Check if VALUE fulfills the actual JSON Schema spec."
   (etypecase schema-spec
     (json-true)
     (json-false
@@ -468,6 +516,7 @@ INVALID-JSON was triggered."
 
 
 (defun check-schema-ref (json-schema value)
+  "Check if VALUE fulfills the JSON Schema referenced $ref, if any."
   (alexandria:when-let ((ref (ref json-schema)))
     (let* ((base-uri (base-uri json-schema))
            (ref-schema (or
@@ -487,6 +536,7 @@ INVALID-JSON was triggered."
 
 
 (defun check-schema (json-schema value)
+  "Check if VALUE fulfills the JSON Schema."
   ;; NOTE: the spec on $ref doesn't say that it disallows validating with other
   ;; keywords, so consider it possible
   (check-schema-ref json-schema value)
@@ -496,6 +546,9 @@ INVALID-JSON was triggered."
 ;;; Entrypoints
 
 (defmethod validate ((json-schema json-schema) value)
+  "Validate VALUE with JSON-SCHEMA.
+
+Return T if valid or throw an 'INVALID-JSON condition if not."
   (let ((*json-pointer* '())
         (*evaluated-properties-map* (make-hash-table :test 'eq))
         (invalid-json-condition (make-condition 'invalid-json)))

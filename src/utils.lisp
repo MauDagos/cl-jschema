@@ -4,6 +4,7 @@
 ;;; Hash table utils
 
 (defun hash-table-of-type-p (hash-table type)
+  "Return T if all of the values in HASH-TABLE are of type TYPE."
   (loop
     for value being the hash-value in hash-table
     always (typep value type)))
@@ -27,14 +28,17 @@
 ;;; JSON symbols utils
 
 (defun json-null-p (value)
+  "Is VALUE a JSON null value as parsed by JZON."
   (eq value 'null))
 
 
 (defun json-true-p (value)
+  "Is VALUE a JSON true value as parsed by JZON."
   (eq value t))
 
 
 (defun json-false-p (value)
+  "Is VALUE a JSON false value as parsed by JZON."
   (eq value nil))
 
 

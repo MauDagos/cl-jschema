@@ -7,7 +7,7 @@
 (defun expected-message (expected-pointer expected-keyword &optional msg-arg)
   (format nil "~s : ~?"
           expected-pointer
-          (cl-jschema::keyword-validation-message expected-keyword)
+          (cl-jschema::keyword-validation-format-string expected-keyword)
           (list msg-arg)))
 
 

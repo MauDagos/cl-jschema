@@ -20,13 +20,13 @@
      (call-cl-jschema-test ,name (lambda () ,@body))))
 
 
-(defmacro signals (condition-spec message &body body)
+(defmacro signals (condition-type message &body body)
   (alexandria:with-gensyms (e body-fn)
     `(let ((,body-fn (lambda () ,@body)))
-       (5am:signals ,condition-spec (funcall ,body-fn))
+       (5am:signals ,condition-type (funcall ,body-fn))
        (5am:is (equal ,message (handler-case
                                    (funcall ,body-fn)
-                                 (,condition-spec (,e)
+                                 (,condition-type (,e)
                                    (format nil "~a" ,e))))))))
 
 

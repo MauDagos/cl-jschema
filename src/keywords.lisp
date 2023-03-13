@@ -69,10 +69,11 @@
     ("if"   . schema-like)
     ("then" . schema-like)
     ("else" . schema-like))
-  "Map of allowed keywords in the JSON Schema along with their Lisp type.")
+  "Map of allowed keywords in the JSON Schema to their Lisp type.")
 
 
 (defun keyword-type (keyword)
+  "Return the expected Lisp type for JSON Schema KEYWORD."
   (cdr (assoc keyword *keyword-specs* :test 'equal)))
 
 
@@ -87,7 +88,8 @@
     "writeOnly"
     "deprecated"
     "$comment")
-  "List of keywords that are considered just annotations.")
+  "List of keywords that are considered just annotations, according to the JSON
+Schema documentation.")
 
 
 ;;; Logical operators
@@ -153,22 +155,25 @@
                                     "uniqueItems"))
             ("boolean" json-boolean ())
             ("null" json-null ())))
-  "Map of allowed \"type\" values along with the Lisp type that the JSON being
-validated must satisfy and keywords which map to the type.")
+  "Map of allowed \"type\" values to the Lisp type that the JSON being validated
+must satisfy and JSON Schema keywords which map to the type.")
 
 
 (defparameter *type-keywords*
   (append (list "type")
           (remove-duplicates (alexandria:flatten
                               (mapcar 'type-spec-keywords *type-specs*))
-                             :test 'equal)))
+                             :test 'equal))
+  "The list of allowed JSON Schema keywords for defining a valid value.")
 
 
 (defun type-spec (type)
+  "Return the TYPE-SPEC for JSON Schema keyword TYPE."
   (find type *type-specs* :key 'type-spec-name :test 'equal))
 
 
 (defun type-for-keyword (keyword)
+  "Return the Lisp type for JSON Schema KEYWORD."
   (loop
     for spec in *type-specs*
     when (member keyword (type-spec-keywords spec) :test 'equal)
@@ -177,7 +182,7 @@ validated must satisfy and keywords which map to the type.")
 
 ;;; Pretty messages
 
-(defparameter *value-type-error-messages*
+(defparameter *type-error-format-strings*
   '((json-boolean
      . "Keyword ~a expects a boolean")
     (string
@@ -210,12 +215,14 @@ validated must satisfy and keywords which map to the type.")
      . "Keyword ~a expects a JSON object with schema values")
     (hash-table-of-array-of-strings
      . "Keyword ~a expects a JSON object with JSON array of strings values"))
-  "Map of Lisp types to error format messages, which should expect the keyword as
-a parameter.")
+  "Map of Lisp types to format strings, which should expect the keyword as a
+parameter. These are the validation error messages returned when validating a
+JSON Schema.")
 
 
-(defun type-error-message (type)
-  (cdr (assoc type *value-type-error-messages* :test 'equal)))
+(defun type-error-format-string (type)
+  "Return the format string for invalid values for the Lisp TYPE."
+  (cdr (assoc type *type-error-format-strings* :test 'equal)))
 
 
 (defparameter *validation-error-messages*
@@ -272,9 +279,13 @@ a parameter.")
     ("oneOf"
      . "Condition for \"oneOf\" not met")
     ("not"
-     . "Condition for \"not\" not met")))
+     . "Condition for \"not\" not met"))
+  "A map of JSON Schema keywords (well, not all are real keywords, check the
+actual map) to format strings. These are the validation error messages returned
+when validating a value with a JSON Schema.")
 
 
-(defun keyword-validation-message (keyword)
+(defun keyword-validation-format-string (keyword)
+  "Return the format string for invalid values for the JSON Schema KEYWORD."
   (or (cdr (assoc keyword *validation-error-messages* :test 'equal))
       (error "No validation message for keyword ~s" keyword)))

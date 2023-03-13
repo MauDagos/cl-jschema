@@ -6,6 +6,7 @@
 
 
 (defun register-schema (id json-schema)
+  "Store JSON-SCHEMA in the registry with id ID."
   (setf (gethash id *registry*) json-schema))
 
 
@@ -16,4 +17,5 @@
 
 
 (defun get-schema (id)
+  "Return NIL or a JSON-SCHEMA."
   (gethash id *registry*))
