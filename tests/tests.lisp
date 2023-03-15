@@ -1,6 +1,8 @@
 (in-package :cl-jschema/tests)
 
 
+(5am:def-suite :cl-jschema.tests)
+
 (5am:in-suite :cl-jschema.tests)
 
 

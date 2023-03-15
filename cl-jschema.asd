@@ -27,5 +27,5 @@
   :components ((:module "tests"
                 :components ((:file "package")
                              (:file "testing-utils")
-                             (:file "json-schema-tests"))))
+                             (:file "tests"))))
   :perform (test-op (o c) (symbol-call :fiveam '#:run! :cl-jschema.tests)))
