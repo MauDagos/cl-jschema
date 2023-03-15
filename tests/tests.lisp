@@ -33,7 +33,7 @@
     (cl-jschema:parse "{
                          \"$schema\": \"https://json-schema.org/draft/2020-12/schema\"
                        }"))
-  (signals cl-jschema:invalid-schema "$schema is only allowed at the root level"
+  (signals cl-jschema:invalid-schema "\"/additionalProperties\" : $schema is only allowed at the root level"
     (cl-jschema:parse "{
                          \"additionalProperties\": {
                            \"$schema\": \"https://json-schema.org/draft/2020-12/schema\"
@@ -113,7 +113,7 @@
                                    ,(expected-message "" "pattern" regex))
                                   ("(800)FLOWERS"
                                    ,(expected-message "" "pattern" regex)))))
-  (signals cl-jschema:invalid-schema "This regex is not valid: [0-a"
+  (signals cl-jschema:invalid-schema "\"/pattern\" : This regex is not valid: [0-a"
     (cl-jschema:parse "{\"pattern\": \"[0-a\"}")))
 
 
@@ -622,7 +622,14 @@
     (invalid-jsons json-schema `(("[24, \"Sussex\", \"Drive\"]"
                                   ,(expected-message "/2" "enum"))
                                  ("[\"Palais de l'Élysée\"]"
-                                  ,(expected-message "/0" "type" "number"))))))
+                                  ,(expected-message "/0" "type" "number")))))
+  (signals cl-jschema:invalid-schema "\"/prefixItems/0/type\" : The value for \"type\" must be a string or an array"
+    (cl-jschema:parse "{
+                         \"type\": \"array\",
+                         \"prefixItems\": [
+                           {\"type\": 42}
+                         ]
+                       }")))
 
 
 (cl-jschema-test :array-additional-items-test
@@ -1189,7 +1196,7 @@
                                    \"shipping_address\": { \"$ref\": \"https://example.com/schemas/address\" },
                                    \"billing_address\": { \"$ref\": \"/schemas/address\" }
                                  },
-                                 \"required\": [\"first_name\", \"last_name\", \"shipping_address\", \"billing_address\"]
+                                 \"required\": [\"first_name\", \"last_name\", \"shipping_address\"]
                                }")))
     (5am:is (eq (cl-jschema:get-schema "https://example.com/schemas/address")
                 schema-address))
@@ -1201,22 +1208,23 @@
                 "{
                    \"first_name\": \"Willy\",
                    \"last_name\": \"Wonka\",
-                   \"shipping_address\": {\"street_address\": \"St. Willy\", \"city\": \"Wonka City\", \"state\": \"Wonk\"},
-                   \"billing_address\": {\"street_address\": \"St. Willy\", \"city\": \"Wonka City\", \"state\": \"Wonk\"}
-                 }"
-                "{
-                   \"first_name\": \"Willy\",
-                   \"last_name\": \"Wonka\",
-                   \"shipping_address\": {\"street_address\": \"St. Willy\", \"city\": \"Wonka City\", \"state\": \"Wonk\"},
-                   \"billing_address\": 42
+                   \"shipping_address\": {\"street_address\": \"St. Willy\", \"city\": \"Wonka City\", \"state\": \"Wonk\"}
                  }")
-    (invalid-json schema-customer "{
-                                     \"first_name\": \"Willy\",
-                                     \"last_name\": \"Wonka\",
-                                     \"shipping_address\": {\"street_address\": 42, \"city\": \"Wonka City\", \"state\": \"Wonk\"},
-                                     \"billing_address\": {\"street_address\": \"St. Willy\", \"city\": 42, \"state\": \"Wonk\"}
-                                   }"
-                  (expected-message "/shipping_address/street_address" "type" "string"))))
+    (invalid-jsons schema-customer
+                   `(("{
+                         \"first_name\": \"Willy\",
+                         \"last_name\": \"Wonka\",
+                         \"shipping_address\": {\"street_address\": 42, \"city\": \"Wonka City\", \"state\": \"Wonk\"}
+                       }"
+                      ,(expected-message "/shipping_address/street_address" "type" "string"))
+                     ("{
+                         \"first_name\": \"Willy\",
+                         \"last_name\": \"Wonka\",
+                         \"shipping_address\": {\"street_address\": \"St. Willy\", \"city\": \"Wonka City\", \"state\": \"Wonk\"},
+                         \"billing_address\": {\"street_address\": \"St. Willy\", \"city\": \"Wonka City\", \"state\": \"Wonk\"}
+                       }"
+                      ,(expected-message "/billing_address" "$ref" "/schemas/address"))
+                     ))))
 
 
 (cl-jschema-test :defs-test
@@ -1237,13 +1245,10 @@
     (5am:is (eq (cl-jschema:get-schema "https://example.com#/$defs/name")
                 ;; The path to the inner schema object
                 (gethash "name" (cl-jschema::defs schema-customer))))
-    ;; The $ref for last_name can't be resolved, so last_name is not validated
-    (valid-json schema-customer
-                "{\"first_name\": \"Willy\", \"last_name\": \"Wonka\"}"
-                "{\"first_name\": \"Willy\", \"last_name\": 42}")
-    ;;
-    (invalid-json schema-customer "{\"first_name\": 42, \"last_name\": 42}"
-                  (expected-message "/first_name" "type" "string"))))
+    ;; The $ref for last_name can't be resolved
+    (valid-json schema-customer "{\"first_name\": \"Willy\"}")
+    (invalid-json schema-customer "{\"first_name\": \"Willy\", \"last_name\": \"Wonka\"}"
+                  (expected-message "/last_name" "$ref" "#/$defs/unknown"))))
 
 
 (cl-jschema-test :defs-anonymous-schema-test
@@ -1262,166 +1267,236 @@
                                }")))
     ;; The schema had no root $id, so nothing was registered
     (5am:is (null (cl-jschema:get-schema "https://example.com#/$defs/name")))
-    ;; Because nothing was registered, the properties aren't validated
-    (valid-json schema-customer
-                "{\"first_name\": \"Willy\", \"last_name\": \"Wonka\"}"
-                "{\"first_name\": 42, \"last_name\": 42}")))
+    ;; The $ref for last_name can't be resolved
+    (valid-json schema-customer "{\"first_name\": \"Willy\"}")
+    (invalid-json schema-customer "{\"first_name\": \"Willy\", \"last_name\": \"Wonka\"}"
+                  (expected-message "/last_name" "$ref" "#/$defs/unknown"))))
+
+
+(cl-jschema-test :ref-to-ref-disallowed
+  (signals cl-jschema:invalid-schema
+      "\"/$defs/bob\" : $ref \"#/$defs/alice\" refers to another JSON Schema using $ref"
+    (cl-jschema:parse "{
+                         \"$defs\": {
+                           \"alice\": { \"$ref\": \"#/$defs/bob\" },
+                           \"bob\": { \"$ref\": \"#/$defs/alice\" }
+                         }
+                       }")))
+
+
+(cl-jschema-test :recursion-test
+  (let (schema)
+    (5am:finishes
+      (setq schema
+            (cl-jschema:parse "{
+                                 \"type\": \"object\",
+                                 \"properties\": {
+                                   \"name\": { \"type\": \"string\" },
+                                   \"children\": {
+                                     \"type\": \"array\",
+                                     \"items\": { \"$ref\": \"#\" }
+                                   }
+                                 }
+                               }")))
+    (valid-json schema "{
+                          \"name\": \"Elizabeth\",
+                          \"children\": [
+                            {
+                              \"name\": \"Charles\",
+                              \"children\": [
+                                {
+                                  \"name\": \"William\",
+                                  \"children\": [
+                                    { \"name\": \"George\" },
+                                    { \"name\": \"Charlotte\" }
+                                  ]
+                                },
+                                {
+                                  \"name\": \"Harry\"
+                                }
+                              ]
+                            }
+                          ]
+                        }")
+    (invalid-json schema
+                  "{
+                     \"name\": \"Elizabeth\",
+                     \"children\": [
+                       {
+                         \"name\": \"Charles\",
+                         \"children\": [
+                           {
+                             \"name\": \"William\",
+                             \"children\": [
+                               { \"name\": \"George\" },
+                               { \"name\": 42 }
+                             ]
+                           },
+                           {
+                             \"name\": \"Harry\"
+                           }
+                         ]
+                       }
+                     ]
+                   }"
+                  (expected-message "/children/0/children/0/children/1/name"
+                                    "type" "string"))))
 
 
 (cl-jschema-test :invalid-schemas-test
   (dolist (data '(("[]"
-                   "JSON Schema must be a JSON boolean or object")
+                   "\"\" : JSON Schema must be a JSON boolean or object")
                   ("{\"type\":\"jorl\"}"
-                   "Type \"jorl\" is not allowed")
+                   "\"/type\" : Type \"jorl\" is not allowed")
                   ("{\"type\":[\"string\",\"jorl\"]}"
-                   "Type \"jorl\" is not allowed")
+                   "\"/type\" : Type \"jorl\" is not allowed")
                   ("{\"$schema\":42}"
-                   "Keyword $schema expects a string")
+                   "\"/$schema\" : Keyword $schema expects a string")
                   ("{\"$id\":42}"
-                   "Keyword $id expects a URI without a fragment")
+                   "\"/$id\" : Keyword $id expects a URI without a fragment")
                   ("{\"$id\":\"\"}"
-                   "Keyword $id expects a URI without a fragment")
+                   "\"/$id\" : Keyword $id expects a URI without a fragment")
                   ("{\"$id\":\"https://example.com/schemas/address#foo\"}"
-                   "Keyword $id expects a URI without a fragment")
+                   "\"/$id\" : Keyword $id expects a URI without a fragment")
                   ("{\"$anchor\":42}"
-                   "Keyword $anchor expects a string")
+                   "\"/$anchor\" : Keyword $anchor expects a string")
                   ("{\"$ref\":42}"
-                   "Keyword $ref expects a URI")
+                   "\"/$ref\" : Keyword $ref expects a URI")
                   ("{\"$ref\":\"\"}"
-                   "Keyword $ref expects a URI")
+                   "\"/$ref\" : Keyword $ref expects a URI")
                   ("{\"$defs\":42}"
-                   "Keyword $defs expects a JSON object with schema values")
+                   "\"/$defs\" : Keyword $defs expects a JSON object with schema values")
                   ("{\"type\":42}"
-                   "The value for \"type\" must be a string or an array")
+                   "\"/type\" : The value for \"type\" must be a string or an array")
                   ("{\"minLength\":\"2\"}"
-                   "Keyword minLength expects a non-negative integer")
+                   "\"/minLength\" : Keyword minLength expects a non-negative integer")
                   ("{\"minLength\":-1}"
-                   "Keyword minLength expects a non-negative integer")
+                   "\"/minLength\" : Keyword minLength expects a non-negative integer")
                   ("{\"maxLength\":\"3\"}"
-                   "Keyword maxLength expects a non-negative integer")
+                   "\"/maxLength\" : Keyword maxLength expects a non-negative integer")
                   ("{\"maxLength\":-1}"
-                   "Keyword maxLength expects a non-negative integer")
+                   "\"/maxLength\" : Keyword maxLength expects a non-negative integer")
                   ("{\"pattern\":42}"
-                   "Keyword pattern expects a regular expression")
+                   "\"/pattern\" : Keyword pattern expects a regular expression")
                   ("{\"format\":42}"
-                   "Keyword format expects a string")
+                   "\"/format\" : Keyword format expects a string")
                   ("{\"multipleOf\":0}"
-                   "Keyword multipleOf expects a positive integer")
+                   "\"/multipleOf\" : Keyword multipleOf expects a positive integer")
                   ("{\"minimum\":\"42\"}"
-                   "Keyword minimum expects a number")
+                   "\"/minimum\" : Keyword minimum expects a number")
                   ("{\"exclusiveMinimum\":\"42\"}"
-                   "Keyword exclusiveMinimum expects a number")
+                   "\"/exclusiveMinimum\" : Keyword exclusiveMinimum expects a number")
                   ("{\"maximum\":\"42\"}"
-                   "Keyword maximum expects a number")
+                   "\"/maximum\" : Keyword maximum expects a number")
                   ("{\"exclusiveMaximum\":\"42\"}"
-                   "Keyword exclusiveMaximum expects a number")
+                   "\"/exclusiveMaximum\" : Keyword exclusiveMaximum expects a number")
                   ("{\"enum\":42}"
-                   "Keyword enum expects a non-empty JSON array")
+                   "\"/enum\" : Keyword enum expects a non-empty JSON array")
                   ("{\"enum\":[]}"
-                   "Keyword enum expects a non-empty JSON array")
+                   "\"/enum\" : Keyword enum expects a non-empty JSON array")
                   ("{\"properties\":42}"
-                   "Keyword properties expects a JSON object with schema values")
+                   "\"/properties\" : Keyword properties expects a JSON object with schema values")
                   ("{\"patternProperties\":42}"
-                   "Keyword patternProperties expects a JSON object with schema values")
+                   "\"/patternProperties\" : Keyword patternProperties expects a JSON object with schema values")
                   ("{\"additionalProperties\":42}"
-                   "Keyword additionalProperties expects a schema")
+                   "\"/additionalProperties\" : Keyword additionalProperties expects a schema")
                   ("{\"unevaluatedProperties\":42}"
-                   "Keyword unevaluatedProperties expects a schema")
+                   "\"/unevaluatedProperties\" : Keyword unevaluatedProperties expects a schema")
                   ("{\"required\":42}"
-                   "Keyword required expects a JSON array of zero or more strings")
+                   "\"/required\" : Keyword required expects a JSON array of zero or more strings")
                   ("{\"required\":[42]}"
-                   "Keyword required expects a JSON array of zero or more strings")
+                   "\"/required\" : Keyword required expects a JSON array of zero or more strings")
                   ("{\"propertyNames\":42}"
-                   "Keyword propertyNames expects a schema")
+                   "\"/propertyNames\" : Keyword propertyNames expects a schema")
                   ("{\"minProperties\":\"2\"}"
-                   "Keyword minProperties expects a non-negative integer")
+                   "\"/minProperties\" : Keyword minProperties expects a non-negative integer")
                   ("{\"minProperties\":-1}"
-                   "Keyword minProperties expects a non-negative integer")
+                   "\"/minProperties\" : Keyword minProperties expects a non-negative integer")
                   ("{\"maxProperties\":\"3\"}"
-                   "Keyword maxProperties expects a non-negative integer")
+                   "\"/maxProperties\" : Keyword maxProperties expects a non-negative integer")
                   ("{\"maxProperties\":-1}"
-                   "Keyword maxProperties expects a non-negative integer")
+                   "\"/maxProperties\" : Keyword maxProperties expects a non-negative integer")
                   ("{\"items\": 42}"
-                   "Keyword items expects a schema")
+                   "\"/items\" : Keyword items expects a schema")
                   ("{\"prefixItems\":42}"
-                   "Keyword prefixItems expects a non-empty JSON array of schemas")
+                   "\"/prefixItems\" : Keyword prefixItems expects a non-empty JSON array of schemas")
                   ("{\"prefixItems\":[42]}"
-                   "Keyword prefixItems expects a non-empty JSON array of schemas")
+                   "\"/prefixItems\" : Keyword prefixItems expects a non-empty JSON array of schemas")
                   ("{\"minContains\":\"2\"}"
-                   "Keyword minContains expects a non-negative integer")
+                   "\"/minContains\" : Keyword minContains expects a non-negative integer")
                   ("{\"minContains\":-1}"
-                   "Keyword minContains expects a non-negative integer")
+                   "\"/minContains\" : Keyword minContains expects a non-negative integer")
                   ("{\"maxContains\":\"3\"}"
-                   "Keyword maxContains expects a non-negative integer")
+                   "\"/maxContains\" : Keyword maxContains expects a non-negative integer")
                   ("{\"maxContains\":-1}"
-                   "Keyword maxContains expects a non-negative integer")
+                   "\"/maxContains\" : Keyword maxContains expects a non-negative integer")
                   ("{\"minItems\":\"2\"}"
-                   "Keyword minItems expects a non-negative integer")
+                   "\"/minItems\" : Keyword minItems expects a non-negative integer")
                   ("{\"minItems\":-1}"
-                   "Keyword minItems expects a non-negative integer")
+                   "\"/minItems\" : Keyword minItems expects a non-negative integer")
                   ("{\"maxItems\":\"3\"}"
-                   "Keyword maxItems expects a non-negative integer")
+                   "\"/maxItems\" : Keyword maxItems expects a non-negative integer")
                   ("{\"maxItems\":-1}"
-                   "Keyword maxItems expects a non-negative integer")
+                   "\"/maxItems\" : Keyword maxItems expects a non-negative integer")
                   ("{\"uniqueItems\":42}"
-                   "Keyword uniqueItems expects a boolean")
+                   "\"/uniqueItems\" : Keyword uniqueItems expects a boolean")
                   ("{\"title\":42}"
-                   "Keyword title expects a string")
+                   "\"/title\" : Keyword title expects a string")
                   ("{\"description\":42}"
-                   "Keyword description expects a string")
+                   "\"/description\" : Keyword description expects a string")
                   ("{\"examples\":42}"
-                   "Keyword examples expects a JSON array")
+                   "\"/examples\" : Keyword examples expects a JSON array")
                   ;; A string should not be considered a JSON array
                   ("{\"examples\":\"hello\"}"
-                   "Keyword examples expects a JSON array")
+                   "\"/examples\" : Keyword examples expects a JSON array")
                   ("{\"readOnly\":42}"
-                   "Keyword readOnly expects a boolean")
+                   "\"/readOnly\" : Keyword readOnly expects a boolean")
                   ("{\"writeOnly\":42}"
-                   "Keyword writeOnly expects a boolean")
+                   "\"/writeOnly\" : Keyword writeOnly expects a boolean")
                   ("{\"deprecated\":42}"
-                   "Keyword deprecated expects a boolean")
+                   "\"/deprecated\" : Keyword deprecated expects a boolean")
                   ("{\"$comment\":42}"
-                   "Keyword $comment expects a string")
+                   "\"/$comment\" : Keyword $comment expects a string")
                   ("{\"contentEncoding\":42}"
-                   "Keyword contentEncoding expects a string")
+                   "\"/contentEncoding\" : Keyword contentEncoding expects a string")
                   ("{\"contentMediaType\":42}"
-                   "Keyword contentMediaType expects a string")
+                   "\"/contentMediaType\" : Keyword contentMediaType expects a string")
                   ("{\"minLength\":42, \"minimum\":42}"
-                   "Keywords minLength and minimum refer to different types")
+                   "\"\" : Keywords minLength and minimum refer to different types")
                   ("{\"type\":\"string\", \"minItems\":42}"
-                   "Keyword minItems is for type array, not for type string")
+                   "\"\" : Keyword minItems is for type array, not for type string")
                   ("{\"allOf\":42}"
-                   "Keyword allOf expects a non-empty JSON array of schemas")
+                   "\"/allOf\" : Keyword allOf expects a non-empty JSON array of schemas")
                   ("{\"allOf\":[]}"
-                   "Keyword allOf expects a non-empty JSON array of schemas")
+                   "\"/allOf\" : Keyword allOf expects a non-empty JSON array of schemas")
                   ("{\"anyOf\":42}"
-                   "Keyword anyOf expects a non-empty JSON array of schemas")
+                   "\"/anyOf\" : Keyword anyOf expects a non-empty JSON array of schemas")
                   ("{\"anyOf\":[]}"
-                   "Keyword anyOf expects a non-empty JSON array of schemas")
+                   "\"/anyOf\" : Keyword anyOf expects a non-empty JSON array of schemas")
                   ("{\"oneOf\":42}"
-                   "Keyword oneOf expects a non-empty JSON array of schemas")
+                   "\"/oneOf\" : Keyword oneOf expects a non-empty JSON array of schemas")
                   ("{\"oneOf\":[]}"
-                   "Keyword oneOf expects a non-empty JSON array of schemas")
+                   "\"/oneOf\" : Keyword oneOf expects a non-empty JSON array of schemas")
                   ("{\"not\":42}"
-                   "Keyword not expects a schema")
+                   "\"/not\" : Keyword not expects a schema")
                   ("{\"dependentRequired\":42}"
-                   "Keyword dependentRequired expects a JSON object with JSON array of strings values")
+                   "\"/dependentRequired\" : Keyword dependentRequired expects a JSON object with JSON array of strings values")
                   ("{\"dependentRequired\":[]}"
-                   "Keyword dependentRequired expects a JSON object with JSON array of strings values")
+                   "\"/dependentRequired\" : Keyword dependentRequired expects a JSON object with JSON array of strings values")
                   ("{\"dependentRequired\":{\"key\":42}}"
-                   "Keyword dependentRequired expects a JSON object with JSON array of strings values")
+                   "\"/dependentRequired\" : Keyword dependentRequired expects a JSON object with JSON array of strings values")
                   ("{\"dependentRequired\":{\"key\":[{}]}}"
-                   "Keyword dependentRequired expects a JSON object with JSON array of strings values")
+                   "\"/dependentRequired\" : Keyword dependentRequired expects a JSON object with JSON array of strings values")
                   ("{\"dependentSchemas\":42}"
-                   "Keyword dependentSchemas expects a JSON object with schema values")
+                   "\"/dependentSchemas\" : Keyword dependentSchemas expects a JSON object with schema values")
                   ("{\"dependentSchemas\":{\"key\":[]}}"
-                   "Keyword dependentSchemas expects a JSON object with schema values")
+                   "\"/dependentSchemas\" : Keyword dependentSchemas expects a JSON object with schema values")
                   ("{\"if\":42}"
-                   "Keyword if expects a schema")
+                   "\"/if\" : Keyword if expects a schema")
                   ("{\"then\":42}"
-                   "Keyword then expects a schema")
+                   "\"/then\" : Keyword then expects a schema")
                   ("{\"else\":42}"
-                   "Keyword else expects a schema")))
+                   "\"/else\" : Keyword else expects a schema")))
     (destructuring-bind (json-schema error-message) data
       (signals cl-jschema:invalid-schema error-message
         (cl-jschema:parse json-schema)))))

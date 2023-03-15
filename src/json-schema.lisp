@@ -236,7 +236,12 @@ slots, based on the INPUT-SPEC."
                 :initform nil
                 :reader schema-spec
                 :documentation "The actual spec to validate values against. Can
-                                be T, NIL or a 'JSON-SCHEMA-SPEC.")))
+                                be T, NIL or a 'JSON-SCHEMA-SPEC.")
+   (self-registry :initarg :self-registry
+                  :reader self-registry
+                  :documentation "A hash-table of URI fragments to 'JSON-SCHEMA
+                                  objects. This corresponds to a map of available
+                                  JSON Schemas within the root JSON Schema.")))
 
 
 (defun json-true-schema ()
@@ -245,6 +250,10 @@ slots, based on the INPUT-SPEC."
 
 (defun json-false-schema ()
   (make-instance 'json-schema :schema-spec nil))
+
+
+(defmethod get-inner-schema ((schema json-schema) json-pointer)
+  (gethash json-pointer (self-registry schema)))
 
 
 (defmethod print-object ((schema json-schema) stream)

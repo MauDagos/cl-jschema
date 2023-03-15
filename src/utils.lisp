@@ -55,7 +55,7 @@
          always (json-equal item1 item2))))
 
 
-;;; Misc
+;;; Validating with a JSON Schema
 
 (defun just-once (predicate &rest sequences)
   "Return T if PREDICATE is non-NIL only once in SEQUENCES."
@@ -68,3 +68,21 @@
                  (return-from just-once nil))))
            sequences)
     (= count 1)))
+
+
+;;; Keeping track of a JSON Pointer
+
+(defvar *tracked-json-pointer* nil)
+
+
+(defun call-with-tracked-json-pointer (key-or-index body-fn)
+  (let ((*tracked-json-pointer* (cons key-or-index *tracked-json-pointer*)))
+    (funcall body-fn)))
+
+
+(defmacro with-tracked-json-pointer (key-or-index &body body)
+  `(call-with-tracked-json-pointer ,key-or-index (lambda () ,@body)))
+
+
+(defun tracked-json-pointer ()
+  (format nil "~{/~a~^~}" (reverse *tracked-json-pointer*)))

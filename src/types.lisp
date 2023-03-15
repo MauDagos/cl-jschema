@@ -97,6 +97,7 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun json-true-schema-p (json-schema)
     (and (typep json-schema 'json-schema)
+         (null (ref json-schema))
          (json-true-p (schema-spec json-schema)))))
 
 (deftype json-true-schema ()
@@ -106,6 +107,7 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (defun json-false-schema-p (json-schema)
     (and (typep json-schema 'json-schema)
+         (null (ref json-schema))
          (json-false-p (schema-spec json-schema)))))
 
 (deftype json-false-schema ()

@@ -3,13 +3,21 @@
 
 ;;; Conditions
 
-(define-condition invalid-schema (error) ())
+(define-condition invalid-schema (error)
+  ((error-message :initarg :error-message
+                  :reader invalid-schema-error-message)
+   (json-pointer :initarg :json-pointer
+                 :reader invalid-schema-json-pointer))
+  (:report (lambda (condition stream)
+             (format stream "~s : ~a"
+                     (invalid-schema-json-pointer condition)
+                     (invalid-schema-error-message condition)))))
 
 
 (defun raise-invalid-schema (format-control &rest format-arguments)
   (error 'invalid-schema
-         :format-control format-control
-         :format-arguments format-arguments))
+         :error-message (format nil "~?" format-control format-arguments)
+         :json-pointer (tracked-json-pointer)))
 
 
 (define-condition unparsable-json (invalid-schema)
@@ -63,7 +71,9 @@
 (defun parse-object-of-json-schemas (json-object)
   (let ((schemas (make-hash-table :test 'equal))) ; Case sensitive
     (maphash (lambda (key value)
-               (setf (gethash key schemas) (make-json-schema value)))
+               (setf (gethash key schemas)
+                     (with-tracked-json-pointer key
+                       (make-json-schema value))))
              json-object)
     (when (plusp (hash-table-count schemas))
       schemas)))
@@ -73,8 +83,10 @@
   (let ((json-array-length (length json-array)))
     (when (plusp json-array-length)
       (loop
+        for index from 0
         for item across json-array
-        collect (make-json-schema item)))))
+        collect (with-tracked-json-pointer index
+                  (make-json-schema item))))))
 
 
 (defun parse-regex (string)
@@ -92,7 +104,9 @@ values of JSON Schemas."
   (let ((properties (make-hash-table :test 'eq)))
     (maphash (lambda (key value)
                (let ((regex (parse-regex key)))
-                 (setf (gethash regex properties) (make-json-schema value))))
+                 (setf (gethash regex properties)
+                       (with-tracked-json-pointer key
+                         (make-json-schema value)))))
              json-object)
     (when (plusp (hash-table-count properties))
       properties)))
@@ -102,36 +116,37 @@ values of JSON Schemas."
   "Validate and parse KEYWORD's VALUE based on it's type.
 
 If successful, also remove the KEYWORD from the JSON-OBJECT."
-  (when (check-keyword-value-type keyword value)
-    (prog1
-        (case (keyword-type keyword)
-          ;; JSON arrays
-          ((array
-            non-empty-array
-            array-of-strings)
-           (coerce value 'list))
-          (non-empty-array-of-schema-likes
-           (parse-array-of-json-schemas value))
-          ;; JSON objects
-          (hash-table-of-array-of-strings
-           (parse-object-of-arrays value))
-          (hash-table-of-schema-likes
-           ;; Special case for patternProperties
-           (if (equal keyword "patternProperties")
-               (parse-pattern-properties value)
-               (parse-object-of-json-schemas value)))
-          ;; Schema
-          (schema-like
-           (make-json-schema value))
-          ;; Others
-          (string-or-array-of-strings
-           (etypecase value
-             (string value)
-             (array (coerce value 'list))))
-          (regex
-           (parse-regex value))
-          (t value))
-      (remhash keyword json-object))))
+  (with-tracked-json-pointer keyword
+    (when (check-keyword-value-type keyword value)
+      (prog1
+          (case (keyword-type keyword)
+            ;; JSON arrays
+            ((array
+              non-empty-array
+              array-of-strings)
+             (coerce value 'list))
+            (non-empty-array-of-schema-likes
+             (parse-array-of-json-schemas value))
+            ;; JSON objects
+            (hash-table-of-array-of-strings
+             (parse-object-of-arrays value))
+            (hash-table-of-schema-likes
+             ;; Special case for patternProperties
+             (if (equal keyword "patternProperties")
+                 (parse-pattern-properties value)
+                 (parse-object-of-json-schemas value)))
+            ;; Schema
+            (schema-like
+             (make-json-schema value))
+            ;; Others
+            (string-or-array-of-strings
+             (etypecase value
+               (string value)
+               (array (coerce value 'list))))
+            (regex
+             (parse-regex value))
+            (t value))
+        (remhash keyword json-object)))))
 
 
 (defun make-const-schema (json-object)
@@ -245,15 +260,48 @@ JSON values."
     (json-boolean
      json)
     (hash-table
-     (make-instance 'json-schema-spec
-                    :annotations (make-annotations json)
-                    :condition-schemas (make-condition-schemas json)
-                    :logical-schemas (make-logical-schemas json)
-                    ;; Giving precedence to stricter types of schemas
-                    :type-schema (or (make-const-schema json)
-                                     (make-enum-schema json)
-                                     (make-type-schema json))
-                    :metadata (make-metadata json)))))
+     (if (plusp (hash-table-count json))
+         (make-instance 'json-schema-spec
+                        :annotations (make-annotations json)
+                        :condition-schemas (make-condition-schemas json)
+                        :logical-schemas (make-logical-schemas json)
+                        ;; Giving precedence to stricter types of schemas
+                        :type-schema (or (make-const-schema json)
+                                         (make-enum-schema json)
+                                         (make-type-schema json))
+                        :metadata (make-metadata json))
+         ;; An JSON Schema like '{}' is the same as saying 'true'
+         t))))
+
+
+(defun get-schema-from-schema-ref (json-schema)
+  (alexandria:when-let ((ref (ref json-schema)))
+    (let ((base-uri (base-uri json-schema)))
+      (or
+       ;; $ref might be resolvable on its own by being an inner schema or by
+       ;; being a URI.
+       (get-inner-schema json-schema ref)
+       (get-schema ref)
+       ;; If not, then resolve against the base URI, if any. Clear the base URIs
+       ;; path and then append $ref to it. $ref can be either a path or a
+       ;; fragment.
+       (when base-uri
+         (let ((base-host-uri (puri:copy-uri base-uri)))
+           (setf (puri:uri-path base-host-uri) nil)
+           (get-schema (format nil "~a~a"
+                               (puri:render-uri base-host-uri nil)
+                               ref))))))))
+
+
+(defun check-ref-to-ref (json-schema)
+  "Check if JSON-SCHEMA refers to another JSON-SCHEMA using $ref.
+
+This is explicitly disallowed, according to the official JSON Schema
+documentation."
+  (let ((ref-schema (get-schema-from-schema-ref json-schema)))
+    (when (and ref-schema (ref ref-schema))
+      (raise-invalid-schema "$ref ~s refers to another JSON Schema using $ref"
+                            (ref json-schema)))))
 
 
 (defun register-schema-anchor (json-schema)
@@ -288,16 +336,29 @@ the $defs JSON object. We assume this key is a valid JSON Pointer."
                defs))))
 
 
+(defun register-self (json-schema)
+  "Register the current JSON Pointer as a URI fragment in the self registry."
+  (setf (gethash (format nil "#~a" (tracked-json-pointer))
+                 (self-registry json-schema))
+        json-schema))
+
+
 ;;; For keeping track of the value of $id found on the root of the JSON Schema
 ;;; object.
 (defvar *root-id*)
 
+;;; For keeping track of all JSON Schemas seen while parsing the root JSON
+;;; Schema
+(defvar *self-registry*)
 
 (defun make-json-schema (json)
   (typecase json
     ((or json-boolean hash-table)
      (let* ((rootp (not (boundp '*root-id*)))
-            (*root-id* (if rootp nil *root-id*)))
+            (*root-id* (if rootp nil *root-id*))
+            (*self-registry* (if rootp
+                                 (make-hash-table :test 'equal)
+                                 *self-registry*)))
        (multiple-value-bind (schema id anchor ref defs)
            (when (typep json 'hash-table)
              (values (gethash "$schema" json)
@@ -331,7 +392,10 @@ the $defs JSON object. We assume this key is a valid JSON Pointer."
                                        (parse-keyword-value "$ref" ref json))
                                 :defs (when defs
                                         (parse-keyword-value "$defs" defs json))
-                                :schema-spec (make-schema-spec json))))
+                                :schema-spec (make-schema-spec json)
+                                :self-registry *self-registry*)))
+           ;; Check if $ref refers to another $ref
+           (check-ref-to-ref json-schema)
            ;; Warn if the specified $schema is not supported
            (when (and schema (not (equal schema *$schema*)))
              (warn "No defined support for schema ~s. The schema will be treated as ~
@@ -344,6 +408,8 @@ the $defs JSON object. We assume this key is a valid JSON Pointer."
                (register-schema *root-id* json-schema))
              (register-schema-anchor json-schema)
              (register-schema-defs json-schema))
+           ;; Register in the self registry
+           (register-self json-schema)
            json-schema))))
     (t
      (raise-invalid-schema "JSON Schema must be a JSON boolean or object"))))

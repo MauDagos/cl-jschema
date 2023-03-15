@@ -279,7 +279,9 @@ JSON Schema.")
     ("oneOf"
      . "Condition for \"oneOf\" not met")
     ("not"
-     . "Condition for \"not\" not met"))
+     . "Condition for \"not\" not met")
+    ("$ref"
+     . "Cannot validate value because no JSON Schema was found for $ref ~s"))
   "A map of JSON Schema keywords (well, not all are real keywords, check the
 actual map) to format strings. These are the validation error messages returned
 when validating a value with a JSON Schema.")
