@@ -1267,7 +1267,9 @@
 
 
 (cl-jschema-test :invalid-schemas-test
-  (dolist (data '(("{\"type\":\"jorl\"}"
+  (dolist (data '(("[]"
+                   "JSON Schema must be a JSON boolean or object")
+                  ("{\"type\":\"jorl\"}"
                    "Type \"jorl\" is not allowed")
                   ("{\"type\":[\"string\",\"jorl\"]}"
                    "Type \"jorl\" is not allowed")
@@ -1421,3 +1423,11 @@
     (destructuring-bind (json-schema error-message) data
       (signals cl-jschema:invalid-schema error-message
         (cl-jschema:parse json-schema)))))
+
+
+(cl-jschema-test :unparsable-json-test
+  (dolist (bad-json '(""
+                      "["
+                      "{"))
+    (5am:signals cl-jschema:unparsable-json
+        (cl-jschema:parse bad-json))))

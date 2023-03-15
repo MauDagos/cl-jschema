@@ -1,23 +1,42 @@
 (in-package :cl-jschema)
 
 
+;;; Conditions
+
 (define-condition invalid-schema (error) ())
 
+
+(defun raise-invalid-schema (format-control &rest format-arguments)
+  (error 'invalid-schema
+         :format-control format-control
+         :format-arguments format-arguments))
+
+
+(define-condition unparsable-json (invalid-schema)
+  ((json-error :initarg :json-error
+               :reader unparsable-json-error)))
+
+
+(defun raise-unparsable-json (json-error)
+  (error 'unparsable-json
+         :format-control "Unable to parse JSON Schema due to unparsable JSON: ~a"
+         :format-arguments (list json-error)
+         :json-error json-error))
+
+
+;;; JSON Schema type checking
 
 (defun check-type-value (value)
   "Check if the value for 'type' is allowed."
   (flet ((%check (val)
            (or (type-spec val)
-               (error 'invalid-schema
-                      :format-control "Type ~s is not allowed"
-                      :format-arguments (list val)))))
+               (raise-invalid-schema "Type ~s is not allowed" val))))
     (typecase value
       (string (%check value))
       (array (maparray (lambda (item) (%check item))
                        value))
-      (t (error 'invalid-schema
-                :format-control "The value for \"type\" must be a string or an ~
-                                 array")))))
+      (t (raise-invalid-schema "The value for \"type\" must be a string or an ~
+                                array")))))
 
 
 (defun check-keyword-value-type (keyword value)
@@ -28,9 +47,7 @@
        (check-type-value value))
       ((typep value type))
       (t
-       (error 'invalid-schema
-              :format-control (type-error-format-string type)
-              :format-arguments (list keyword))))
+       (raise-invalid-schema (type-error-format-string type) keyword)))
     t))
 
 
@@ -66,9 +83,7 @@
                      :regex-string string
                      :regex (ppcre:create-scanner string))
     (ppcre:ppcre-syntax-error ()
-      (error 'invalid-schema
-             :format-control "This regex is not valid: ~a"
-             :format-arguments (list string)))))
+      (raise-invalid-schema "This regex is not valid: ~a" string))))
 
 
 (defun parse-pattern-properties (json-object)
@@ -145,50 +160,44 @@ JSON values."
             (let ((kw-type (type-for-keyword keyword)))
               (when (and kw-type
                          (not (equal type kw-type)))
-                (error 'invalid-schema
-                       :format-control "Keyword ~a is for type ~a, not for ~
-                                        type ~a"
-                       :format-arguments (list keyword kw-type type))))))
+                (raise-invalid-schema "Keyword ~a is for type ~a, not for type ~a"
+                                      keyword kw-type type)))))
         (dolist (keyword keywords)
           (alexandria:when-let ((kw-type (type-for-keyword keyword)))
             (dolist (other-keyword keywords)
               (unless (or (equal keyword other-keyword)
                           (equal kw-type (type-for-keyword other-keyword)))
-                (error 'invalid-schema
-                       :format-control "Keywords ~a and ~a refer to different ~
-                                        types"
-                       :format-arguments (list keyword other-keyword)))))))))
+                (raise-invalid-schema "Keywords ~a and ~a refer to different ~
+                                       types"
+                                      keyword other-keyword))))))))
 
 
 (defun make-type-schema (json-object)
-  (or
-   (make-const-schema json-object)
-   (make-enum-schema json-object)
-   (let ((type-properties (make-hash-table :test 'equal)))
-     ;; Populate the type-properties
-     (dolist (keyword *type-keywords*)
-       (multiple-value-bind (value existsp)
-           (gethash keyword json-object)
-         (when existsp
-           (add-to-type-properites keyword
-                                   (parse-keyword-value keyword value json-object)
-                                   type-properties))))
-     ;; Validate
-     (check-colliding-type-keywords type-properties)
-     ;; Return the correct instance
-     (let* ((type-prop (gethash :|type| type-properties))
-            (type (or (when type-prop (value type-prop))
-                      ;; If 'type' was unspecified, then infer it from other
-                      ;; keywords
-                      (loop
-                        for keyword-prop being the hash-values in type-properties
-                        thereis (type-for-keyword (key keyword-prop))))))
-       (when type
-         (make-instance (alexandria:switch (type :test 'equal)
-                          ("object" 'json-object-schema)
-                          ("array"  'json-array-schema)
-                          (t        'json-basic-type-schema))
-                        :type-properties type-properties))))))
+  (let ((type-properties (make-hash-table :test 'equal)))
+    ;; Populate the type-properties
+    (dolist (keyword *type-keywords*)
+      (multiple-value-bind (value existsp)
+          (gethash keyword json-object)
+        (when existsp
+          (add-to-type-properites keyword
+                                  (parse-keyword-value keyword value json-object)
+                                  type-properties))))
+    ;; Validate
+    (check-colliding-type-keywords type-properties)
+    ;; Return the correct instance
+    (let* ((type-prop (gethash :|type| type-properties))
+           (type (or (when type-prop (value type-prop))
+                     ;; If 'type' was unspecified, then infer it from other
+                     ;; keywords
+                     (loop
+                       for keyword-prop being the hash-values in type-properties
+                       thereis (type-for-keyword (key keyword-prop))))))
+      (when type
+        (make-instance (alexandria:switch (type :test 'equal)
+                         ("object" 'json-object-schema)
+                         ("array"  'json-array-schema)
+                         (t        'json-basic-type-schema))
+                       :type-properties type-properties)))))
 
 
 (defun make-annotations (json-object)
@@ -240,8 +249,43 @@ JSON values."
                     :annotations (make-annotations json)
                     :condition-schemas (make-condition-schemas json)
                     :logical-schemas (make-logical-schemas json)
-                    :type-schema (make-type-schema json)
+                    ;; Giving precedence to stricter types of schemas
+                    :type-schema (or (make-const-schema json)
+                                     (make-enum-schema json)
+                                     (make-type-schema json))
                     :metadata (make-metadata json)))))
+
+
+(defun register-schema-anchor (json-schema)
+  "Register the $anchor path to JSON-SCHEMA if there's a base URI ($id).
+
+The path is generated by adding $anchor as the fragment to the base URI. We
+assume $anchor is a valid JSON Pointer."
+  (let ((base-uri (base-uri json-schema))
+        (anchor (anchor json-schema)))
+    (when (and base-uri anchor)
+      (let ((anchor-uri (puri:copy-uri base-uri)))
+        (setf (puri:uri-fragment anchor-uri) anchor)
+        (register-schema (puri:render-uri anchor-uri nil) json-schema)))))
+
+
+(defun register-schema-defs (json-schema)
+  "Register the $defs paths of JSON-SCHEMA if there's a base URI ($id).
+
+The paths are generated by removing the URI path from the base URI and and
+including in the base URI as fragments '/$defs/<name>', where <name> is a key of
+the $defs JSON object. We assume this key is a valid JSON Pointer."
+  (let ((base-uri (base-uri json-schema))
+        (defs (defs json-schema)))
+    (when (and base-uri defs)
+      (maphash (lambda (def-name def-json-schema)
+                 (let ((def-uri (puri:copy-uri base-uri)))
+                   (setf (puri:uri-path def-uri) nil
+                         (puri:uri-fragment def-uri) (format nil "/$defs/~a"
+                                                             def-name))
+                   (register-schema (puri:render-uri def-uri nil)
+                                    def-json-schema)))
+               defs))))
 
 
 ;;; For keeping track of the value of $id found on the root of the JSON Schema
@@ -249,86 +293,78 @@ JSON values."
 (defvar *root-id*)
 
 
-(defun make-json-schema (json &key rootp)
-  (multiple-value-bind (schema id anchor ref defs)
-      (when (typep json 'hash-table)
-        (values (gethash "$schema" json)
-                (gethash "$id" json)
-                (gethash "$anchor" json)
-                (gethash "$ref" json)
-                (gethash "$defs" json)))
-    ;; Check root-only values
-    (unless rootp
-      (when schema
-        (error 'invalid-schema
-               :format-control "$schema is only allowed at the root level"))
-      (when defs
-        (error 'invalid-schema
-               :format-control "$defs is only allowed at the root level")))
-    (when (and id rootp)
-      (setq *root-id* id))
-    ;; Parse the JSON Schema
-    (let ((json-schema
-            (make-instance 'json-schema
-                           :schema (when schema
-                                     (parse-keyword-value "$schema" schema json))
-                           :id (when id
-                                 (parse-keyword-value "$id" id json))
-                           ;; Parse the root $id after the call to
-                           ;; 'PARSE-KEYWORD-VALUE for $id, so we're sure that
-                           ;; the root $id is valid
-                           :base-uri (when *root-id*
-                                       (puri:parse-uri *root-id*))
-                           :anchor (when anchor
-                                     (parse-keyword-value "$anchor" anchor json))
-                           :ref (when ref
-                                  (parse-keyword-value "$ref" ref json))
-                           :defs (when defs
-                                   (parse-keyword-value "$defs" defs json))
-                           :schema-spec (make-schema-spec json))))
-      ;; Warn if the specified $schema is not supported
-      (when (and schema (not (equal schema *$schema*)))
-        (warn "No defined support for schema ~s. The schema will be treated as ~
+(defun make-json-schema (json)
+  (typecase json
+    ((or json-boolean hash-table)
+     (let* ((rootp (not (boundp '*root-id*)))
+            (*root-id* (if rootp nil *root-id*)))
+       (multiple-value-bind (schema id anchor ref defs)
+           (when (typep json 'hash-table)
+             (values (gethash "$schema" json)
+                     (gethash "$id" json)
+                     (gethash "$anchor" json)
+                     (gethash "$ref" json)
+                     (gethash "$defs" json)))
+         ;; Check root-only values
+         (unless rootp
+           (when schema
+             (raise-invalid-schema "$schema is only allowed at the root level"))
+           (when defs
+             (raise-invalid-schema "$defs is only allowed at the root level")))
+         ;; Parse the JSON Schema
+         (when (and id rootp)
+           (setq *root-id* id))
+         (let ((json-schema
+                 (make-instance 'json-schema
+                                :schema (when schema
+                                          (parse-keyword-value "$schema" schema json))
+                                :id (when id
+                                      (parse-keyword-value "$id" id json))
+                                ;; Parse the root $id after the call to
+                                ;; 'PARSE-KEYWORD-VALUE for $id, so we're sure that
+                                ;; the root $id is valid
+                                :base-uri (when *root-id*
+                                            (puri:parse-uri *root-id*))
+                                :anchor (when anchor
+                                          (parse-keyword-value "$anchor" anchor json))
+                                :ref (when ref
+                                       (parse-keyword-value "$ref" ref json))
+                                :defs (when defs
+                                        (parse-keyword-value "$defs" defs json))
+                                :schema-spec (make-schema-spec json))))
+           ;; Warn if the specified $schema is not supported
+           (when (and schema (not (equal schema *$schema*)))
+             (warn "No defined support for schema ~s. The schema will be treated as ~
                of draft 2020-12."
-              schema))
-      ;; Register the json schema in our registry if there's a base URI ($id)
-      (when *root-id*
-        (register-schema *root-id* json-schema)
-        ;; Register the anchor as the base URI with the anchor as the fragment.
-        ;; We assume the anchor is a valid JSON Pointer
-        (when anchor
-          (let ((anchor-uri (puri:copy-uri (base-uri json-schema))))
-            (setf (puri:uri-fragment anchor-uri) anchor)
-            (register-schema (puri:render-uri anchor-uri nil) json-schema)))
-        ;; Register the $defs as base URI without a path and with the "$def
-        ;; name" as the fragment. We assume the "$def name" is a valid JSON
-        ;; Pointer
-        ;;
-        ;; NOTE: we're only registering the top-level names in $defs. That means
-        ;; we won't support referencing with $refs internal subschemas that are
-        ;; deeply nested.
-        (when defs
-          (maphash (lambda (def-name def-json-schema)
-                     (let ((def-uri (puri:copy-uri (base-uri json-schema))))
-                       (setf (puri:uri-path def-uri) nil
-                             (puri:uri-fragment def-uri) (format nil "/$defs/~a"
-                                                                 def-name))
-                       (register-schema (puri:render-uri def-uri nil)
-                                        def-json-schema)))
-                   (defs json-schema))))
-      json-schema)))
+                   schema))
+           ;; Register schema IDs if there's a base URI ($id)
+           (when *root-id*
+             ;; Only register the root JSON-SCHEMA with the root id.
+             (when rootp
+               (register-schema *root-id* json-schema))
+             (register-schema-anchor json-schema)
+             (register-schema-defs json-schema))
+           json-schema))))
+    (t
+     (raise-invalid-schema "JSON Schema must be a JSON boolean or object"))))
 
 
 ;;; Entrypoints
 
 (defun parse (input &key allow-comments allow-trailing-comma)
-  (let ((json (jzon:parse input
-                          :allow-comments allow-comments
-                          :allow-trailing-comma allow-trailing-comma)))
-    (typecase json
-      ((or json-boolean hash-table)
-       (let ((*root-id* nil))
-         (make-json-schema json :rootp t)))
-      (t
-       (error 'invalid-schema
-              :format-control "The provided JSON schema is invalid")))))
+  "Return an instance of 'JSON-SCHEMA.
+
+INPUT can be a value previously parsed by JZON or a value that's parsable by
+JZON. The keyargs ALLOW-COMMENTS and ALLOW-TRAILING-COMMA are forwarded to
+'JZON:PARSE."
+  (make-json-schema
+   (etypecase input
+     ((or json-boolean hash-table)
+      input)
+     ((or string stream)
+      (handler-case
+          (jzon:parse input
+                      :allow-comments allow-comments
+                      :allow-trailing-comma allow-trailing-comma)
+        (jzon:json-error (e)
+          (raise-unparsable-json e)))))))

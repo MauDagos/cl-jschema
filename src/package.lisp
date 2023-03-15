@@ -10,7 +10,8 @@
            #:json-schema
            ;; Conditions
            #:invalid-schema
-           #:not-implemented
+           #:unparsable-json
+           #:unparsable-json-error
            #:invalid-json
            #:invalid-json-error-message
            #:invalid-json-pointer
