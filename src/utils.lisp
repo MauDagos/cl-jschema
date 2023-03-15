@@ -1,22 +1,7 @@
 (in-package :cl-jschema)
 
 
-;;; Hash table utils
-
-(defun hash-table-of-type-p (hash-table type)
-  "Return T if all of the values in HASH-TABLE are of type TYPE."
-  (loop
-    for value being the hash-value in hash-table
-    always (typep value type)))
-
-
-;;; Array utils
-
-(defun array-of-type-p (array type)
-  (loop
-    for item across array
-    always (typep item type)))
-
+;;; JSON array utils
 
 (defun maparray (function array &key (start 0))
   (loop
@@ -27,19 +12,22 @@
 
 ;;; JSON symbols utils
 
-(defun json-null-p (value)
-  "Is VALUE a JSON null value as parsed by JZON."
-  (eq value 'null))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun json-null-p (value)
+    "Is VALUE a JSON null value as parsed by JZON."
+    (eq value 'null)))
 
 
-(defun json-true-p (value)
-  "Is VALUE a JSON true value as parsed by JZON."
-  (eq value t))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun json-true-p (value)
+    "Is VALUE a JSON true value as parsed by JZON."
+    (eq value t)))
 
 
-(defun json-false-p (value)
-  "Is VALUE a JSON false value as parsed by JZON."
-  (eq value nil))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun json-false-p (value)
+    "Is VALUE a JSON false value as parsed by JZON."
+    (eq value nil)))
 
 
 ;;; JSON-EQUAL
