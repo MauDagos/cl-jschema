@@ -281,6 +281,8 @@ JSON Schema.")
     ("not"
      . "Condition for \"not\" not met")
     ("$ref"
+     . "Value does not satisfy the JSON Schema found by $ref ~s")
+    ("unresolvable-ref"                 ; Not an actual keyword in JSON Schema
      . "Cannot validate value because no JSON Schema was found for $ref ~s"))
   "A map of JSON Schema keywords (well, not all are real keywords, check the
 actual map) to format strings. These are the validation error messages returned

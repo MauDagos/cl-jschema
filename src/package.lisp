@@ -15,6 +15,7 @@
    #:invalid-schema-json-pointer
    #:unparsable-json
    #:unparsable-json-error
+   #:not-implemented
    ;; Validation with JSON Schema conditions
    #:invalid-json
    #:invalid-json-error-message

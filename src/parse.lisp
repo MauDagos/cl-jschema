@@ -32,6 +32,15 @@
          :json-error json-error))
 
 
+(define-condition not-implemented (invalid-schema) ())
+
+
+(defun raise-not-implemented (format-control &rest format-arguments)
+  (error 'not-implemented
+         :error-message (format nil "~?" format-control format-arguments)
+         :json-pointer (tracked-json-pointer)))
+
+
 ;;; JSON Schema type checking
 
 (defun check-type-value (value)
@@ -58,6 +67,8 @@
        (raise-invalid-schema (type-error-format-string type) keyword)))
     t))
 
+
+;;; Parsing JSON Schema based on expected Lisp type
 
 (defun parse-object-of-arrays (json-object)
   (let ((table (make-hash-table :test 'equal)))
@@ -148,6 +159,8 @@ If successful, also remove the KEYWORD from the JSON-OBJECT."
             (t value))
         (remhash keyword json-object)))))
 
+
+;;; Creating Lisp instances
 
 (defun make-const-schema (json-object)
   (alexandria:when-let ((const (gethash "const" json-object)))
@@ -275,6 +288,7 @@ JSON values."
 
 
 (defun get-schema-from-schema-ref (json-schema)
+  "Return a 'JSON-SCHEMA by resolving $ref from JSON-SCHEMA. Can return NIL."
   (alexandria:when-let ((ref (ref json-schema)))
     (let ((base-uri (base-uri json-schema)))
       (or
@@ -398,9 +412,7 @@ the $defs JSON object. We assume this key is a valid JSON Pointer."
            (check-ref-to-ref json-schema)
            ;; Warn if the specified $schema is not supported
            (when (and schema (not (equal schema *$schema*)))
-             (warn "No defined support for schema ~s. The schema will be treated as ~
-               of draft 2020-12."
-                   schema))
+             (raise-not-implemented "No support for $schema ~s" schema))
            ;; Register schema IDs if there's a base URI ($id)
            (when *root-id*
              ;; Only register the root JSON-SCHEMA with the root id.
@@ -424,8 +436,8 @@ INPUT can be a value previously parsed by JZON or a value that's parsable by
 JZON. The keyargs ALLOW-COMMENTS and ALLOW-TRAILING-COMMA are forwarded to
 'JZON:PARSE."
   (make-json-schema
-   (etypecase input
-     ((or json-boolean hash-table)
+   (typecase input
+     (schema-like
       input)
      ((or string stream)
       (handler-case
@@ -433,4 +445,7 @@ JZON. The keyargs ALLOW-COMMENTS and ALLOW-TRAILING-COMMA are forwarded to
                       :allow-comments allow-comments
                       :allow-trailing-comma allow-trailing-comma)
         (jzon:json-error (e)
-          (raise-unparsable-json e)))))))
+          (raise-unparsable-json e))))
+     (t
+      (error "CL-JSCHEMA:PARSE accepts as input NIL, T, HASH-TABLE, STRING or ~
+              STREAM")))))

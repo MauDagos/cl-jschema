@@ -43,7 +43,12 @@ Also create an restart named 'CONTINUE-VALIDATING."
 
 
 (defun raise-unresolvable-ref (ref)
-  (raise-invalid-json "$ref" ref))
+  (with-simple-restart (continue-validating "Continue validating the JSON")
+    (error 'unresolvable-ref
+           :error-message (format nil (keyword-validation-format-string
+                                       "unresolvable-ref")
+                                  ref)
+           :json-pointer (tracked-json-pointer))))
 
 
 ;;; Validation helpers
@@ -63,7 +68,9 @@ Also create an restart named 'CONTINUE-VALIDATING."
 
 (defmacro with-valid-json-p (&body body)
   "Make BODY return T if no errors were triggered or return NIL if an
-INVALID-JSON was triggered."
+INVALID-JSON was triggered.
+
+Any INVALID-JSON thrown by BODY is not propagated upwards."
   `(call-with-valid-json-p (lambda () ,@body)))
 
 
@@ -511,12 +518,26 @@ JSON Schema."
 (defvar *ignore-unresolvable-refs*)
 
 (defun check-schema-ref (json-schema value)
-  "Check if VALUE fulfills the JSON Schema referenced $ref, if any."
+  "Check if VALUE fulfills the JSON Schema referenced by $ref, if any."
   (alexandria:when-let ((ref (ref json-schema)))
-    (let ((ref-schema (get-schema-from-schema-ref json-schema)))
+    (let ((ref-schema (get-schema-from-schema-ref json-schema))
+          (current-json-pointer *tracked-json-pointer*)
+          ref-error-raised-p)
       (cond
         (ref-schema
-         (check-schema ref-schema value))
+         ;; If the value doesn't satisfy the schema found, also raise an error
+         ;; to be clear that it happened while checking $ref.
+         ;;
+         ;; Since the restart is being invoked by 'VALIDATE, we must ensure here
+         ;; that the $ref error is raised only once.
+         (handler-bind ((invalid-json
+                          (lambda (e)
+                            (declare (ignore e))
+                            (unless ref-error-raised-p
+                              (let ((*tracked-json-pointer* current-json-pointer))
+                                (raise-invalid-json "$ref" ref)
+                                (setq ref-error-raised-p t))))))
+           (check-schema ref-schema value)))
         ((not *ignore-unresolvable-refs*)
          (raise-unresolvable-ref ref))))))
 

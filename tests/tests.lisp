@@ -1170,7 +1170,11 @@
 
 \"/shipping_address/street_address\" : Not of type \"string\"
 
-\"/billing_address/city\" : Not of type \"string\"")))
+\"/shipping_address\" : Value does not satisfy the JSON Schema found by $ref \"/schemas/address\"
+
+\"/billing_address/city\" : Not of type \"string\"
+
+\"/billing_address\" : Value does not satisfy the JSON Schema found by $ref \"/schemas/address\"")))
 
 
 (cl-jschema-test :ref-anonymous-schema-test
@@ -1216,15 +1220,18 @@
                          \"last_name\": \"Wonka\",
                          \"shipping_address\": {\"street_address\": 42, \"city\": \"Wonka City\", \"state\": \"Wonk\"}
                        }"
-                      ,(expected-message "/shipping_address/street_address" "type" "string"))
+                      "JSON Schema validation found these errors:
+
+\"/shipping_address/street_address\" : Not of type \"string\"
+
+\"/shipping_address\" : Value does not satisfy the JSON Schema found by $ref \"https://example.com/schemas/address\"")
                      ("{
                          \"first_name\": \"Willy\",
                          \"last_name\": \"Wonka\",
                          \"shipping_address\": {\"street_address\": \"St. Willy\", \"city\": \"Wonka City\", \"state\": \"Wonk\"},
                          \"billing_address\": {\"street_address\": \"St. Willy\", \"city\": \"Wonka City\", \"state\": \"Wonk\"}
                        }"
-                      ,(expected-message "/billing_address" "$ref" "/schemas/address"))
-                     ))))
+                      ,(expected-message "/billing_address" "unresolvable-ref" "/schemas/address"))))))
 
 
 (cl-jschema-test :defs-test
@@ -1248,7 +1255,7 @@
     ;; The $ref for last_name can't be resolved
     (valid-json schema-customer "{\"first_name\": \"Willy\"}")
     (invalid-json schema-customer "{\"first_name\": \"Willy\", \"last_name\": \"Wonka\"}"
-                  (expected-message "/last_name" "$ref" "#/$defs/unknown"))))
+                  (expected-message "/last_name" "unresolvable-ref" "#/$defs/unknown"))))
 
 
 (cl-jschema-test :defs-anonymous-schema-test
@@ -1270,7 +1277,7 @@
     ;; The $ref for last_name can't be resolved
     (valid-json schema-customer "{\"first_name\": \"Willy\"}")
     (invalid-json schema-customer "{\"first_name\": \"Willy\", \"last_name\": \"Wonka\"}"
-                  (expected-message "/last_name" "$ref" "#/$defs/unknown"))))
+                  (expected-message "/last_name" "unresolvable-ref" "#/$defs/unknown"))))
 
 
 (cl-jschema-test :ref-to-ref-disallowed
@@ -1339,8 +1346,15 @@
                        }
                      ]
                    }"
-                  (expected-message "/children/0/children/0/children/1/name"
-                                    "type" "string"))))
+                  "JSON Schema validation found these errors:
+
+\"/children/0/children/0/children/1/name\" : Not of type \"string\"
+
+\"/children/0/children/0/children/1\" : Value does not satisfy the JSON Schema found by $ref \"#\"
+
+\"/children/0/children/0\" : Value does not satisfy the JSON Schema found by $ref \"#\"
+
+\"/children/0\" : Value does not satisfy the JSON Schema found by $ref \"#\"")))
 
 
 (cl-jschema-test :invalid-schemas-test
@@ -1508,3 +1522,8 @@
                       "{"))
     (5am:signals cl-jschema:unparsable-json
         (cl-jschema:parse bad-json))))
+
+
+(cl-jschema-test :not-implemented-test
+  (signals cl-jschema:not-implemented "\"\" : No support for $schema \"http://json-schema.org/draft-07/schema\""
+    (cl-jschema:parse "{ \"$schema\": \"http://json-schema.org/draft-07/schema\" }")))
