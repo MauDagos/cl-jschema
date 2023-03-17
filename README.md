@@ -7,16 +7,26 @@ Currently only supporting draft 2020-12.
 ### Index
 
 * [Setup](#setup)
+* [Limitations](#limitations)
 * [User guide](#user-guide)
+  * [Entrypoints](#entrypoints)
+  * [Classes](#classes)
+  * [Conditions](#conditions)
 * [Roadmap](#setup)
 * [Dependencies](#dependencies)
 
 ## Setup
 
-`cl-jschema` is not yet in Quicklisp or Ultralisp (but it's in the roadmap!).
+`CL-JSCHEMA` is not yet in Quicklisp or Ultralisp (but it's in the roadmap!).
 
 In the meantime you can clone this repository and load the system `:cl-jschema`
 with ASDF.
+
+## Limitations
+
+* Currently only supports JSON Schema draft 2020-12.
+* Currently only supports validating values which look like they were parsed by
+  `COM.INUOE.JZON:PARSE`.
 
 ## User guide
 
@@ -24,8 +34,9 @@ with ASDF.
 
 #### `cl-jschema:parse`
 
-Parse a JSON Schema. Allows parsing a string or a `CL:STREAM`. You may also
-supply it a previously parsed JSON that was parsed with `COM.INUOE.JZON:PARSE`.
+Parse a JSON Schema and return an instance of `CL-JSCHEMA:JSON-SCHEMA`. Allows
+parsing a string or a `CL:STREAM`. You may also supply it a previously parsed
+JSON that was parsed with `COM.INUOE.JZON:PARSE`.
 
 Keyargs `ALLOW-COMMENTS` and `ALLOW-TRAILING-COMMA` default to `NIL` but can be
 set to non-`NIL` to allow comments (`//`) or trailing commas, respectively.
