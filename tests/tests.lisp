@@ -374,7 +374,7 @@
                          \"type\": \"business\"
                       }"
                       ;; NOTE: here the validation fails because
-                      ;; 'additionalProperties' fails, because "type" is
+                      ;; 'additionalProperties' fails, because 'type' is
                       ;; considered additional. Perhaps the error message could
                       ;; be clearer.
                       ,(expected-message "" "allOf"))
@@ -1249,7 +1249,7 @@
                                    \"name\": { \"type\": \"string\" }
                                  }
                                }")))
-    (5am:is (eq (cl-jschema:get-schema "https://example.com#/$defs/name")
+    (5am:is (eq (cl-jschema:get-schema "https://example.com/schemas/customer#/$defs/name")
                 ;; The path to the inner schema object
                 (gethash "name" (cl-jschema::defs schema-customer))))
     ;; The $ref for last_name can't be resolved
@@ -1357,6 +1357,55 @@
 \"/children/0\" : Value does not satisfy the JSON Schema found by $ref \"#\"")))
 
 
+(cl-jschema-test :bundling-test
+  (let (schema-customer)
+    (5am:finishes
+      (setq schema-customer
+            (cl-jschema:parse "{
+  \"$id\": \"https://example.com/schemas/customer\",
+  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",
+
+  \"type\": \"object\",
+  \"properties\": {
+    \"first_name\": { \"type\": \"string\" },
+    \"last_name\": { \"type\": \"string\" },
+    \"shipping_address\": { \"$ref\": \"/schemas/address\" },
+    \"billing_address\": { \"$ref\": \"/schemas/address\" }
+  },
+  \"required\": [\"first_name\", \"last_name\", \"shipping_address\", \"billing_address\"],
+
+  \"$defs\": {
+    \"address\": {
+      \"$id\": \"/schemas/address\",
+      \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",
+
+      \"type\": \"object\",
+      \"properties\": {
+        \"street_address\": { \"type\": \"string\" },
+        \"city\": { \"type\": \"string\" },
+        \"state\": { \"$ref\": \"#/$defs/state\" }
+      },
+      \"required\": [\"street_address\", \"city\", \"state\"],
+
+      \"$defs\": {
+        \"state\": { \"enum\": [\"CA\", \"NY\", \"... etc ...\"] }
+      }
+    }
+  }
+}")))
+    ;; Check that all schemas are registered
+    (5am:is (eq (cl-jschema:get-schema "https://example.com/schemas/customer")
+                schema-customer))
+    (5am:is (eq (cl-jschema:get-schema "https://example.com/schemas/customer#/$defs/address")
+                (gethash "address" (cl-jschema::defs schema-customer))))
+    (let ((schema-address
+            (cl-jschema:get-schema "https://example.com/schemas/address")))
+      (5am:is (eq schema-address
+                  (gethash "address" (cl-jschema::defs schema-customer))))
+      (5am:is (eq (cl-jschema:get-schema "https://example.com/schemas/address#/$defs/state")
+                  (gethash "state" (cl-jschema::defs schema-address)))))))
+
+
 (cl-jschema-test :invalid-schemas-test
   (dolist (data '(("[]"
                    "\"\" : JSON Schema must be a JSON boolean or object")
@@ -1373,7 +1422,11 @@
                   ("{\"$id\":\"https://example.com/schemas/address#foo\"}"
                    "\"/$id\" : Keyword $id expects a URI without a fragment")
                   ("{\"$anchor\":42}"
-                   "\"/$anchor\" : Keyword $anchor expects a string")
+                   "\"/$anchor\" : Keyword $anchor expects a string starting with a letter followed by any number of letters, digits, -, _, : or .")
+                  ("{\"$anchor\":\"42\"}"
+                   "\"/$anchor\" : Keyword $anchor expects a string starting with a letter followed by any number of letters, digits, -, _, : or .")
+                  ("{\"$anchor\":\"street%%%\"}"
+                   "\"/$anchor\" : Keyword $anchor expects a string starting with a letter followed by any number of letters, digits, -, _, : or .")
                   ("{\"$ref\":42}"
                    "\"/$ref\" : Keyword $ref expects a URI")
                   ("{\"$ref\":\"\"}"

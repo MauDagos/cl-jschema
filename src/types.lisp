@@ -152,3 +152,16 @@
 
 (deftype uri-reference-without-fragment ()
   `(and uri-reference (satisfies uri-reference-without-fragment-p)))
+
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun anchor-like-p (value)
+    "Anchors must start with a letter followed by any number of letters, digits,
+-, _, :, or ."
+    (and (stringp value)
+         (ppcre:scan (load-time-value
+                      (ppcre:create-scanner "^[a-zA-Z][a-zA-Z0-9:_.\-]*$"))
+                     value))))
+
+(deftype anchor-like ()
+  `(and string (satisfies anchor-like-p)))

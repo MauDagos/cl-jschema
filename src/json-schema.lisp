@@ -239,7 +239,7 @@ slots, based on the INPUT-SPEC."
                                 be T, NIL or a 'JSON-SCHEMA-SPEC.")
    (self-registry :initarg :self-registry
                   :reader self-registry
-                  :documentation "A hash-table of URI fragments to 'JSON-SCHEMA
+                  :documentation "A hash-table of JSON Pointers to 'JSON-SCHEMA
                                   objects. This corresponds to a map of available
                                   JSON Schemas within the root JSON Schema.")))
 
@@ -254,6 +254,28 @@ slots, based on the INPUT-SPEC."
 
 (defmethod get-inner-schema ((schema json-schema) json-pointer)
   (gethash json-pointer (self-registry schema)))
+
+
+(defmethod get-schema-from-ref ((schema json-schema))
+  "Return a 'JSON-SCHEMA by resolving $ref from JSON-SCHEMA. Can return NIL."
+  (alexandria:when-let ((ref (ref schema)))
+    (let* ((fragmentp (eq #\# (char ref 0))) ; starts with '#'
+           (maybe-json-pointer (if fragmentp
+                                   (subseq ref 1)
+                                   ref)))
+      (or
+       ;; $ref can be a JSON Pointer to an inner schema
+       (get-inner-schema schema maybe-json-pointer)
+       ;; $ref can be a non-relative URI
+       (get-schema (puri:parse-uri ref))
+       ;; $ref resolves against the base URI, if any. $ref can be either a path
+       ;; or a fragment.
+       (alexandria:when-let ((base-uri (base-uri schema)))
+         (let ((uri-copy (puri:copy-uri base-uri)))
+           (if fragmentp
+               (setf (puri:uri-fragment uri-copy) maybe-json-pointer)
+               (setf (puri:uri-path uri-copy) maybe-json-pointer))
+           (get-schema uri-copy)))))))
 
 
 (defmethod print-object ((schema json-schema) stream)

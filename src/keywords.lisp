@@ -8,7 +8,7 @@
     ("$schema" . string)
     ;; schema identification
     ("$id"     . uri-reference-without-fragment)
-    ("$anchor" . string)
+    ("$anchor" . anchor-like)
     ("$ref"    . uri-reference)
     ("$defs"   . hash-table-of-schema-likes)
     ;; annotations
@@ -193,6 +193,9 @@ must satisfy and JSON Schema keywords which map to the type.")
      . "Keyword ~a expects a URI")
     (uri-reference-without-fragment
      . "Keyword ~a expects a URI without a fragment")
+    (anchor-like
+     . "Keyword ~a expects a string starting with a letter followed by any ~
+        number of letters, digits, -, _, : or .")
     (number
      . "Keyword ~a expects a number")
     (alexandria:positive-integer

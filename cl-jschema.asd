@@ -1,9 +1,9 @@
 (asdf:defsystem #:cl-jschema
   :serial t
   :version "0.0.1"
-  :description "Support for JSON Schema Draft 2020-12"
+  :description "Common Lisp implementation of JSON Schema"
   :author "Mauro D'Agostino"
-  :license ""                           ; TODO
+  :license "MIT"
   :depends-on (#:com.inuoe.jzon
                #:alexandria
                #:cl-ppcre

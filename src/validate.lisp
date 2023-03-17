@@ -520,7 +520,7 @@ JSON Schema."
 (defun check-schema-ref (json-schema value)
   "Check if VALUE fulfills the JSON Schema referenced by $ref, if any."
   (alexandria:when-let ((ref (ref json-schema)))
-    (let ((ref-schema (get-schema-from-schema-ref json-schema))
+    (let ((ref-schema (get-schema-from-ref json-schema))
           (current-json-pointer *tracked-json-pointer*)
           ref-error-raised-p)
       (cond

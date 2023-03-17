@@ -32,7 +32,6 @@
 
 ;;; JSON Schema testing
 
-
 (defun valid-value (json-schema &rest value-input)
   (dolist (value value-input)
     (5am:is-true (cl-jschema:validate json-schema value))))
