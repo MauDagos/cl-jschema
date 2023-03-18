@@ -210,9 +210,12 @@ JSON values."
             (dolist (other-keyword keywords)
               (unless (or (equal keyword other-keyword)
                           (equal kw-type (type-for-keyword other-keyword)))
-                (raise-invalid-schema "Keywords ~a and ~a refer to different ~
+                ;; Sort the keywords for easier testing
+                (raise-invalid-schema "~?"
+                                      "Keywords ~a and ~a refer to different ~
                                        types"
-                                      keyword other-keyword))))))))
+                                      (sort (list keyword other-keyword)
+                                            'string<)))))))))
 
 
 (defun make-type-schema (json-object)

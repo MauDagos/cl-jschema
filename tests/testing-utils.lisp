@@ -45,8 +45,25 @@
   (if (alexandria:starts-with-subseq "JSON Schema validation found"
                                      error-message
                                      :test 'equal)
-      (signals cl-jschema:invalid-json error-message
-        (cl-jschema:validate json-schema value))
+      (let (invalid-json-error
+            (value-error-messages (split-error-message error-message)))
+        (5am:signals cl-jschema:invalid-json
+            (handler-bind ((cl-jschema:invalid-json
+                             (lambda (e)
+                               (setq invalid-json-error e))))
+              (cl-jschema:validate json-schema value)))
+        (when invalid-json-error
+          (let ((error-messages (mapcar (lambda (value-error)
+                                          (format nil "~a" value-error))
+                                        (cl-jschema:invalid-json-errors invalid-json-error))))
+            (5am:is (null (set-difference value-error-messages error-messages
+                                          :test 'equal))
+                    "Validation with JSON Schema threw errors:~
+                     ~{~%~a~^~}~%~
+                     Expected:~%~
+                     ~{~a~^~%~}"
+                    error-messages
+                    value-error-messages))))
       (signals cl-jschema:invalid-json-value error-message
         (handler-case
             (cl-jschema:validate json-schema value)
@@ -74,3 +91,23 @@
   (dolist (input json-input)
     (destructuring-bind (json error-message) input
       (invalid-json json-schema json error-message))))
+
+
+;;; Misc
+
+(defun split-string-by-delimiter (string delimiter)
+  "Split STRING by DELIMITER. Return substrings."
+  (assert (characterp delimiter))
+  (loop
+    for start = 0 then (1+ pos)
+    for pos = (position delimiter string :start start :test 'char=)
+    if pos
+      collect (subseq string start pos)
+    else
+      collect (subseq string start)
+    while pos))
+
+
+(defun split-error-message (error-message)
+  (remove "" (subseq (split-string-by-delimiter error-message #\NewLine) 2)
+          :test 'equal))
