@@ -27,6 +27,11 @@ with ASDF.
 * Currently only supports JSON Schema draft 2020-12.
 * Currently only supports validating values which look like they were parsed by
   `COM.INUOE.JZON:PARSE`.
+* Does not support fetching JSON Schemas from the web.
+* The base URI is only considered with the `$id` at the root of the JSON Schema
+  document. If you fetch a JSON Schema from the web and it does not include an
+  `$id` at the root, then the JSON Schema will not be registered in the
+  `CL-JSCHEMA` **registry**.
 
 ## User guide
 
