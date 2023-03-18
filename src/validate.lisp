@@ -3,30 +3,19 @@
 
 ;;; Handling conditions
 
-(define-condition invalid-json (error)
+(define-condition invalid-json-value (error)
   ((error-message :initarg :error-message
-                  :reader invalid-json-error-message)
+                  :reader invalid-json-value-error-message)
    (json-pointer :initarg :json-pointer
-                 :reader invalid-json-json-pointer)
-   (errors :initarg :errors
-           :initform nil
-           :accessor invalid-json-errors))
+                 :reader invalid-json-value-json-pointer))
   (:report (lambda (condition stream)
-             (alexandria:if-let ((errors (invalid-json-errors condition)))
-               (format stream "JSON Schema validation found these errors:~
-                               ~{~2%~a~^~}"
-                       errors)
-               (format stream "~s : ~a"
-                       (invalid-json-json-pointer condition)
-                       (invalid-json-error-message condition))))))
+             (format stream "~s : ~a"
+                     (invalid-json-value-json-pointer condition)
+                     (invalid-json-value-error-message condition)))))
 
 
-(defmethod track-invalid-json-error ((self invalid-json) error)
-  (push error (invalid-json-errors self)))
-
-
-(defun raise-invalid-json (keyword &optional value)
-  "Raise an 'INVALID-JSON condition.
+(defun raise-invalid-json-value (keyword &optional value)
+  "Raise an 'INVALID-JSON-VALUE condition.
 
 Also create an restart named 'CONTINUE-VALIDATING."
   (let ((format-message (keyword-validation-format-string
@@ -34,21 +23,37 @@ Also create an restart named 'CONTINUE-VALIDATING."
                          ;; Lisp keywords, so convert them back to strings.
                          (string keyword))))
     (with-simple-restart (continue-validating "Continue validating the JSON")
-      (error 'invalid-json
+      (error 'invalid-json-value
              :error-message (format nil format-message value)
              :json-pointer (tracked-json-pointer)))))
 
 
-(define-condition unresolvable-ref (invalid-json) ())
+(define-condition unresolvable-ref (invalid-json-value) ())
 
 
 (defun raise-unresolvable-ref (ref)
+  "Raise an 'UNRESOLVABLE-REF condition.
+
+Also create an restart named 'CONTINUE-VALIDATING."
   (with-simple-restart (continue-validating "Continue validating the JSON")
     (error 'unresolvable-ref
            :error-message (format nil (keyword-validation-format-string
                                        "unresolvable-ref")
                                   ref)
            :json-pointer (tracked-json-pointer))))
+
+
+(define-condition invalid-json (error)
+  ((errors :initform nil
+           :accessor invalid-json-errors))
+  (:report (lambda (condition stream)
+             (format stream "JSON Schema validation found these errors:~
+                             ~{~2%~a~^~}"
+                     (invalid-json-errors condition)))))
+
+
+(defmethod track-invalid-json-error ((self invalid-json) error)
+  (push error (invalid-json-errors self)))
 
 
 ;;; Validation helpers
@@ -59,18 +64,19 @@ Also create an restart named 'CONTINUE-VALIDATING."
 
 (defun call-with-valid-json-p (body-fn)
   (let ((*inside-call-with-valid-json-p* t))
-    (handler-bind ((invalid-json (lambda (e)
-                                   (declare (ignore e))
-                                   (return-from call-with-valid-json-p nil))))
+    (handler-bind ((invalid-json-value
+                     (lambda (e)
+                       (declare (ignore e))
+                       (return-from call-with-valid-json-p nil))))
       (funcall body-fn)
       t)))
 
 
 (defmacro with-valid-json-p (&body body)
-  "Make BODY return T if no errors were triggered or return NIL if an
-INVALID-JSON was triggered.
+  "Make BODY return T if no errors were triggered or return NIL if a condition of
+type 'INVALID-JSON-VALUE was triggered.
 
-Any INVALID-JSON thrown by BODY is not propagated upwards."
+Any 'INVALID-JSON-VALUE thrown by BODY is not propagated upwards."
   `(call-with-valid-json-p (lambda () ,@body)))
 
 
@@ -89,11 +95,12 @@ Any INVALID-JSON thrown by BODY is not propagated upwards."
                                                (cons nil nil))))
     ;; Track the property being evaluated for this json object
     (pushnew keyword (car properties) :test 'equal)
-    (handler-bind ((invalid-json (lambda (e)
-                                   (declare (ignore e))
-                                   ;; Track the property as being invalid
-                                   (pushnew keyword (cdr properties)
-                                            :test 'equal))))
+    (handler-bind ((invalid-json-value
+                     (lambda (e)
+                       (declare (ignore e))
+                       ;; Track the property as being invalid
+                       (pushnew keyword (cdr properties)
+                                :test 'equal))))
       (funcall body-fn))))
 
 
@@ -111,7 +118,7 @@ KEYWORD is somehow invalid."
   (flet ((%check (type)
            (let ((spec (type-spec type)))
              (or (typep value (type-spec-lisp-type spec))
-                 (raise-invalid-json keyword type)))))
+                 (raise-invalid-json-value keyword type)))))
     (etypecase type
       (string
        (%check type))
@@ -119,7 +126,7 @@ KEYWORD is somehow invalid."
        (or (some (lambda (type*)
                    (with-valid-json-p (%check type*)))
                  type)
-           (raise-invalid-json "types" type))))))
+           (raise-invalid-json-value "types" type))))))
 
 
 (defmethod check-type-property ((keyword (eql :|minLength|))
@@ -127,7 +134,7 @@ KEYWORD is somehow invalid."
   "Check VALUE by 'minLength' for MIN-LENGTH."
   (when (stringp value)
     (or (>= (length value) min-length)
-        (raise-invalid-json keyword min-length))))
+        (raise-invalid-json-value keyword min-length))))
 
 
 (defmethod check-type-property ((keyword (eql :|maxLength|))
@@ -135,7 +142,7 @@ KEYWORD is somehow invalid."
   "Check VALUE by 'maxLength' for MAX-LENGTH."
   (when (stringp value)
     (or (<= (length value) max-length)
-        (raise-invalid-json keyword max-length))))
+        (raise-invalid-json-value keyword max-length))))
 
 
 (defmethod check-type-property ((keyword (eql :|pattern|))
@@ -143,7 +150,7 @@ KEYWORD is somehow invalid."
   "Check VALUE by 'pattern' for PATTERN."
   (when (stringp value)
     (or (ppcre:scan (regex pattern) value)
-        (raise-invalid-json keyword (regex-string pattern)))))
+        (raise-invalid-json-value keyword (regex-string pattern)))))
 
 
 (defmethod check-type-property ((keyword (eql :|multipleOf|))
@@ -151,7 +158,7 @@ KEYWORD is somehow invalid."
   "Check VALUE by 'multipleOf' for MULTIPLE-OF."
   (when (numberp value)
     (or (zerop (mod value multiple-of))
-        (raise-invalid-json keyword multiple-of))))
+        (raise-invalid-json-value keyword multiple-of))))
 
 
 (defmethod check-type-property ((keyword (eql :|minimum|))
@@ -159,7 +166,7 @@ KEYWORD is somehow invalid."
   "Check VALUE by 'minimum' by MINIMUM."
   (when (numberp value)
     (or (>= value minimum)
-        (raise-invalid-json keyword minimum))))
+        (raise-invalid-json-value keyword minimum))))
 
 
 (defmethod check-type-property ((keyword (eql :|exclusiveMinimum|))
@@ -167,7 +174,7 @@ KEYWORD is somehow invalid."
   "Check VALUE by 'exclusiveMinimum' by EXCLUSIVE-MINIMUM."
   (when (numberp value)
     (or (> value exclusive-minimum)
-        (raise-invalid-json keyword exclusive-minimum))))
+        (raise-invalid-json-value keyword exclusive-minimum))))
 
 
 (defmethod check-type-property ((keyword (eql :|maximum|))
@@ -175,7 +182,7 @@ KEYWORD is somehow invalid."
   "Check VALUE by 'maximum' by MAXIMUM."
   (when (numberp value)
     (or (<= value maximum)
-        (raise-invalid-json keyword maximum))))
+        (raise-invalid-json-value keyword maximum))))
 
 
 (defmethod check-type-property ((keyword (eql :|exclusiveMaximum|))
@@ -183,7 +190,7 @@ KEYWORD is somehow invalid."
   "Check VALUE by 'exclusiveMaximum' by EXCLUSIVE-MAXIMUM."
   (when (numberp value)
     (or (< value exclusive-maximum)
-        (raise-invalid-json keyword exclusive-maximum))))
+        (raise-invalid-json-value keyword exclusive-maximum))))
 
 
 (defmethod check-type-property ((keyword (eql :|properties|))
@@ -232,7 +239,7 @@ PATTERN-PROPERTIES."
     (loop
       for field in required
       always (or (gethash field value)
-                 (raise-invalid-json keyword field)))))
+                 (raise-invalid-json-value keyword field)))))
 
 
 (defmethod check-type-property ((keyword (eql :|dependentRequired|))
@@ -260,7 +267,7 @@ PATTERN-PROPERTIES."
   "Check VALUE by 'minProperties' for MIN-PROPERTIES."
   (when (typep value 'hash-table)
     (or (>= (hash-table-count value) min-properties)
-        (raise-invalid-json keyword min-properties))))
+        (raise-invalid-json-value keyword min-properties))))
 
 
 (defmethod check-type-property ((keyword (eql :|maxProperties|))
@@ -268,7 +275,7 @@ PATTERN-PROPERTIES."
   "Check VALUE by 'maxProperties' for MAX-PROPERTIES."
   (when (typep value 'hash-table)
     (or (<= (hash-table-count value) max-properties)
-        (raise-invalid-json keyword max-properties))))
+        (raise-invalid-json-value keyword max-properties))))
 
 
 (defmethod check-type-property ((keyword (eql :|prefixItems|))
@@ -288,7 +295,7 @@ PATTERN-PROPERTIES."
   "Check VALUE by 'minItems' for MIN-ITEMS."
   (when (typep value 'array)
     (or (>= (length value) min-items)
-        (raise-invalid-json keyword min-items))))
+        (raise-invalid-json-value keyword min-items))))
 
 
 (defmethod check-type-property ((keyword (eql :|maxItems|))
@@ -296,7 +303,7 @@ PATTERN-PROPERTIES."
   "Check VALUE by 'maxItems' for MAX-ITEMS."
   (when (typep value 'array)
     (or (<= (length value) max-items)
-        (raise-invalid-json keyword max-items))))
+        (raise-invalid-json-value keyword max-items))))
 
 
 (defmethod check-type-property ((keyword (eql :|uniqueItems|))
@@ -313,7 +320,7 @@ PATTERN-PROPERTIES."
              for index* from 0
              thereis (unless (= index index*)
                        (json-equal item item*)))
-        return (raise-invalid-json keyword))))
+        return (raise-invalid-json-value keyword))))
 
 
 (defun check-additional-properties (object-schema json-object)
@@ -332,7 +339,7 @@ OBJECT-SCHEMA."
          (maphash (lambda (key val)
                     (declare (ignore val))
                     (or (member key available-props :test 'equal)
-                        (raise-invalid-json "additionalProperties" key)))
+                        (raise-invalid-json-value "additionalProperties" key)))
                   json-object)))
       ;; Schema: only allow additional if they're valid.
       (json-schema
@@ -363,7 +370,7 @@ OBJECT-SCHEMA."
        (maphash (lambda (key val)
                   (declare (ignore val))
                   (or (member key validated-properties :test 'equal)
-                      (raise-invalid-json "additionalProperties" key)))
+                      (raise-invalid-json-value "additionalProperties" key)))
                 json-object))
       ;; Schema: only allow unevaluated if they're valid.
       (json-schema
@@ -390,7 +397,7 @@ If 'prefixItems' was specified, then we only check items not covered by it."
        (when (and prefix-items
                   (> (length json-array)
                      (length prefix-items)))
-         (raise-invalid-json "items")))
+         (raise-invalid-json-value "items")))
       ;; Schema has two cases:
       ;; If prefixItems was set: check that additional items are valid.
       ;; Else: check that all items are valid
@@ -421,22 +428,22 @@ The values of 'minContains' and 'maxContains' are also respected."
                   (when (with-valid-json-p (check-schema contains item))
                     (incf valid-count)
                     (when (and max-contains (> valid-count max-contains))
-                      (raise-invalid-json "maxContains" max-contains))))
+                      (raise-invalid-json-value "maxContains" max-contains))))
                 json-array)
       (when (< valid-count min-contains)
-        (raise-invalid-json "minContains" min-contains)))))
+        (raise-invalid-json-value "minContains" min-contains)))))
 
 
 (defmethod check-type-schema ((const-schema const-schema) value)
   "Check if VALUE is the item from CONST-SCHEMA."
   (or (json-equal value (const const-schema))
-      (raise-invalid-json "const")))
+      (raise-invalid-json-value "const")))
 
 
 (defmethod check-type-schema ((enum-schema enum-schema) value)
   "Check if VALUE is any item in ENUM-SCHEMA."
   (or (member value (items enum-schema) :test 'json-equal)
-      (raise-invalid-json "enum")))
+      (raise-invalid-json-value "enum")))
 
 
 (defmethod check-type-schema ((type-schema json-type-schema) value)
@@ -489,7 +496,7 @@ JSON Schema."
                  (lambda (schema)
                    (with-valid-json-p (check-schema schema value)))
                  schemas)
-        (raise-invalid-json operator))))
+        (raise-invalid-json-value operator))))
 
 
 (defun check-logical-schemas (logical-schemas value)
@@ -502,7 +509,7 @@ JSON Schema."
   (etypecase schema-spec
     (json-true)
     (json-false
-     (raise-invalid-json "false-schema"))
+     (raise-invalid-json-value "false-schema"))
     (json-schema-spec
      ;; The order of these steps doesn't seem to matter, but leave the type
      ;; schema step the last for being able to validate 'unevaluatedProperties'.
@@ -530,12 +537,12 @@ JSON Schema."
          ;;
          ;; Since the restart is being invoked by 'VALIDATE, we must ensure here
          ;; that the $ref error is raised only once.
-         (handler-bind ((invalid-json
+         (handler-bind ((invalid-json-value
                           (lambda (e)
                             (declare (ignore e))
                             (unless ref-error-raised-p
                               (let ((*tracked-json-pointer* current-json-pointer))
-                                (raise-invalid-json "$ref" ref)
+                                (raise-invalid-json-value "$ref" ref)
                                 (setq ref-error-raised-p t))))))
            (check-schema ref-schema value)))
         ((not *ignore-unresolvable-refs*)
@@ -564,7 +571,7 @@ to non-NIL to avoid these errors."
   (let ((*ignore-unresolvable-refs* ignore-unresolvable-refs)
         (*evaluated-properties-map* (make-hash-table :test 'eq))
         (invalid-json-condition (make-condition 'invalid-json)))
-    (handler-bind ((invalid-json
+    (handler-bind ((invalid-json-value
                      (lambda (e)
                        (track-invalid-json-error invalid-json-condition e)
                        (invoke-restart 'continue-validating))))

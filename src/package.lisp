@@ -12,12 +12,14 @@
    ;; Invalid JSON Schema conditions
    #:invalid-schema
    #:invalid-schema-error-message
+   #:invalid-schema-base-uri
    #:invalid-schema-json-pointer
    #:unparsable-json
    #:unparsable-json-error
    #:not-implemented
    ;; Validation with JSON Schema conditions
    #:invalid-json
-   #:invalid-json-error-message
-   #:invalid-json-json-pointer
-   #:invalid-json-errors))
+   #:invalid-json-errors
+   #:invalid-json-value
+   #:invalid-json-value-error-message
+   #:invalid-json-value-json-pointer))

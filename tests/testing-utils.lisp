@@ -42,18 +42,19 @@
 
 
 (defun invalid-value (json-schema value error-message)
-  (signals cl-jschema:invalid-json error-message
-    (if (alexandria:starts-with-subseq "JSON Schema validation found"
-                                       error-message
-                                       :test 'equal)
-        (cl-jschema:validate json-schema value)
+  (if (alexandria:starts-with-subseq "JSON Schema validation found"
+                                     error-message
+                                     :test 'equal)
+      (signals cl-jschema:invalid-json error-message
+        (cl-jschema:validate json-schema value))
+      (signals cl-jschema:invalid-json-value error-message
         (handler-case
             (cl-jschema:validate json-schema value)
           (cl-jschema:invalid-json (e)
             (let* ((errors (cl-jschema:invalid-json-errors e))
                    (count (length errors)))
               (if (= 1 count)
-                  (error (first (cl-jschema:invalid-json-errors e)))
+                  (error (first errors))
                   (5am:fail "Testing invalid JSON for one error, but got ~d.~2%~
                              Testing value ~s for message ~s"
                             count value error-message))))))))
