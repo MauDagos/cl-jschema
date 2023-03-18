@@ -10,12 +10,14 @@ Common Lisp implementation of [JSON Schema](https://json-schema.org/).
   * [Entrypoints](#entrypoints)
   * [Classes](#classes)
   * [Conditions](#conditions)
+* [Example](#example)
 * [Roadmap](#setup)
 * [Dependencies](#dependencies)
 
 ## Setup
 
-`CL-JSCHEMA` is not yet in Quicklisp or Ultralisp (but it's in the roadmap!).
+`CL-JSCHEMA` is not yet in Quicklisp or Ultralisp (but it's in the
+[roadmap](#roadmap)!).
 
 In the meantime you can clone this repository and load the system `:cl-jschema`
 with ASDF.
@@ -156,11 +158,42 @@ supplied value for validation is invalid.
   Pointer](https://www.rfc-editor.org/rfc/rfc6901) to the value being validated
   when the condition was thrown.
 
+## Example
+
+``` common-lisp
+CL-USER> (let ((json-schema
+                 (cl-jschema:parse "{
+                                      \"properties\": {
+                                        \"number\": {
+                                          \"type\": \"number\",
+                                          \"exclusiveMinimum\": -1,
+                                          \"minimum\": 0
+                                        }
+                                      }
+                                    }"))
+               (value (com.inuoe.jzon:parse "{\"number\": -1}")))
+           (handler-case
+               (cl-jschema:validate json-schema value)
+             (cl-jschema:invalid-json (e)
+               (dolist (value-error (cl-jschema:invalid-json-errors e))
+                 (format t "JSON Pointer: ~s~%~
+                            Error: ~a~2%"
+                         (cl-jschema:invalid-json-value-json-pointer value-error)
+                         (cl-jschema:invalid-json-value-error-message value-error))))))
+JSON Pointer: "/number"
+Error: Number is less than 0
+
+JSON Pointer: "/number"
+Error: Number is less or equal to -1
+
+NIL
+```
+
 ## Roadmap
 
 * Publish in Quicklisp.
 * Publish in Ultralisp.
-* Add GitHub workflow for running test suite.
+* Add GitHub workflow for running `FIVEAM` test suite.
 * Include [JSON-Schema-Test-Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite).
 
 ## Dependencies
