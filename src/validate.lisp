@@ -55,7 +55,7 @@ Also create an restart named 'CONTINUE-VALIDATING."
 
 
 (defmethod track-invalid-json-error ((self invalid-json) error)
-  (setf (invalid-json-errors self) (cons error (invalid-json-errors self))))
+  (push error (invalid-json-errors self)))
 
 
 ;;; Validation helpers
