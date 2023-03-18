@@ -1168,13 +1168,13 @@
                                    }"
                   "JSON Schema validation found these errors:
 
-\"/shipping_address/street_address\" : Not of type \"string\"
-
-\"/shipping_address\" : Value does not satisfy the JSON Schema found by $ref \"/schemas/address\"
+\"/billing_address\" : Value does not satisfy the JSON Schema found by $ref \"/schemas/address\"
 
 \"/billing_address/city\" : Not of type \"string\"
 
-\"/billing_address\" : Value does not satisfy the JSON Schema found by $ref \"/schemas/address\"")))
+\"/shipping_address\" : Value does not satisfy the JSON Schema found by $ref \"/schemas/address\"
+
+\"/shipping_address/street_address\" : Not of type \"string\"")))
 
 
 (cl-jschema-test :ref-anonymous-schema-test
@@ -1222,9 +1222,9 @@
                        }"
                       "JSON Schema validation found these errors:
 
-\"/shipping_address/street_address\" : Not of type \"string\"
+\"/shipping_address\" : Value does not satisfy the JSON Schema found by $ref \"https://example.com/schemas/address\"
 
-\"/shipping_address\" : Value does not satisfy the JSON Schema found by $ref \"https://example.com/schemas/address\"")
+\"/shipping_address/street_address\" : Not of type \"string\"")
                      ("{
                          \"first_name\": \"Willy\",
                          \"last_name\": \"Wonka\",
@@ -1348,13 +1348,13 @@
                    }"
                   "JSON Schema validation found these errors:
 
-\"/children/0/children/0/children/1/name\" : Not of type \"string\"
-
-\"/children/0/children/0/children/1\" : Value does not satisfy the JSON Schema found by $ref \"#\"
+\"/children/0\" : Value does not satisfy the JSON Schema found by $ref \"#\"
 
 \"/children/0/children/0\" : Value does not satisfy the JSON Schema found by $ref \"#\"
 
-\"/children/0\" : Value does not satisfy the JSON Schema found by $ref \"#\"")))
+\"/children/0/children/0/children/1\" : Value does not satisfy the JSON Schema found by $ref \"#\"
+
+\"/children/0/children/0/children/1/name\" : Not of type \"string\"")))
 
 
 (cl-jschema-test :bundling-test

@@ -49,11 +49,13 @@ Also create an restart named 'CONTINUE-VALIDATING."
   (:report (lambda (condition stream)
              (format stream "JSON Schema validation found these errors:~
                              ~{~2%~a~^~}"
-                     (invalid-json-errors condition)))))
+                     (sort (copy-list (invalid-json-errors condition))
+                           'string<
+                           :key 'invalid-json-value-json-pointer)))))
 
 
 (defmethod track-invalid-json-error ((self invalid-json) error)
-  (push error (invalid-json-errors self)))
+  (setf (invalid-json-errors self) (cons error (invalid-json-errors self))))
 
 
 ;;; Validation helpers
