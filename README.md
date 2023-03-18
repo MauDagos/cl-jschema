@@ -2,8 +2,6 @@
 
 Common Lisp implementation of [JSON Schema](https://json-schema.org/).
 
-Currently only supporting draft 2020-12.
-
 ### Index
 
 * [Setup](#setup)
@@ -32,35 +30,131 @@ with ASDF.
 
 ### Entrypoints
 
-#### `cl-jschema:parse`
+#### `CL-JSCHEMA:PARSE`
 
-Parse a JSON Schema and return an instance of `CL-JSCHEMA:JSON-SCHEMA`. Allows
-parsing a string or a `CL:STREAM`. You may also supply it a previously parsed
-JSON that was parsed with `COM.INUOE.JZON:PARSE`.
+Parse a JSON Schema. Returns an instance of `CL-JSCHEMA:JSON-SCHEMA` or throws a
+condition of type `CL-JSCHEMA:INVALID-SCHEMA`.
 
-Keyargs `ALLOW-COMMENTS` and `ALLOW-TRAILING-COMMA` default to `NIL` but can be
-set to non-`NIL` to allow comments (`//`) or trailing commas, respectively.
+Allows parsing a string or a `CL:STREAM`. You may also supply it a previously
+parsed JSON that was parsed with `COM.INUOE.JZON:PARSE`. In any other case, a
+condition of type `CL:ERROR` is thrown.
 
-#### `cl-jschema:validate`
-#### `cl-jschema:clear-registry`
-#### `cl-jschema:get-schema`
+Keyword arguments:
+
+* `ALLOW-COMMENTS`: defaults to `NIL`. Can be set to non-`NIL` to allow comments
+  (`//`).
+* `ALLOW-TRAILING-COMMA` defaults to `NIL`. Can be set to non-`NIL` to allow
+  trailing commas.
+
+Upon successfully parsing and if the JSON Schema contained a base URI (an `$id`
+at the root of the JSON Schema document), then the root JSON Schema and any
+[bundled JSON Schema
+Resources](https://json-schema.org/understanding-json-schema/structuring.html#bundling)
+are registered in the `CL-JSCHEMA` **registry**.
+
+#### `CL-JSCHEMA:VALIDATE`
+
+Validate a value with an instance of `CL-JSCHEMA:JSON-SCHEMA`. Returns `T` or
+throws a condition of type `CL-JSCHEMA:INVALID-JSON`.
+
+Currently only supports validating values which look like they have been
+previously parsed by `COM.INUOE.JZON:PARSE`.
+
+Keyword arguments:
+
+* `IGNORE-UNRESOLVABLE-REFS`: defaults to `NIL`, meaning a value meant to be
+  validated by a `$ref` will be considered invalid if no JSON Schema is found
+  when resolving `$ref`. Can be set to non-`NIL` to consider values as valid
+  when `$ref` is not resolvable.
+
+If a condition of type `CL-JSCHEMA:INVALID-JSON` is thrown, then it's possible
+to access all of the validation errors found throughout the validation by using
+`CL-JSCHEMA:INVALID-JSON-ERRORS`.
+
+#### `CL-JSCHEMA:CLEAR-REGISTRY`
+
+Clear the `CL-JSCHEMA` **registry** of parsed JSON Schemas.
+
+#### `CL-JSCHEMA:GET-SCHEMA`
+
+Find an instance of `CL-JSCHEMA:JSON-SCHEMA` given a URI as a string or as an
+instance of `PURI:URI`. Can return `NIL`.
+
+If the URI contains a fragment, then it will be used to find a JSON Schema
+inside the JSON Schema found by the URI without the fragment. It's assumed that
+the fragment is a [JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901) or the
+name of an `$anchor`.
 
 ### Classes
 
-#### `cl-jschema:json-schema`
+#### `CL-JSCHEMA:JSON-SCHEMA`
+
+A class representing a parsed JSON Schema. Use `CL-JSCHEMA:PARSE` to create a
+new one or `CL-JSCHEMA:GET-SCHEMA` to find a previously parsed one.
 
 ### Conditions
 
-#### `cl-jschema:invalid-schema`
-#### `cl-jschema:invalid-schema-error-message`
-#### `cl-jschema:invalid-schema-json-pointer`
-#### `cl-jschema:unparsable-json`
-#### `cl-jschema:unparsable-json-error`
-#### `cl-jschema:not-implemented`
-#### `cl-jschema:invalid-json`
-#### `cl-jschema:invalid-json-error-message`
-#### `cl-jschema:invalid-json-json-pointer`
-#### `cl-jschema:invalid-json-errors`
+#### `CL-JSCHEMA:INVALID-SCHEMA`
+
+Conditions of this type are thrown when using `CL-JSCHEMA:PARSE`. This condition
+indicates that the JSON Schema being parsed is invalid.
+
+Information about this condition can be accessed with:
+
+* `CL-JSCHEMA:INVALID-SCHEMA-ERROR-MESSAGE`: the reason why the condition was
+  thrown. Returns a string.
+* `CL-JSCHEMA:INVALID-SCHEMA-BASE-URI`: the base URI, if any, of the JSON Schema
+  being validated when the condition was thrown. Returns `NIL` or an instance of
+  `PURI:URI`.
+* `CL-JSCHEMA:INVALID-SCHEMA-JSON-POINTER`: the [JSON
+  Pointer](https://www.rfc-editor.org/rfc/rfc6901) to the value being validated
+  in the JSON Schema when the condition was thrown. The JSON Pointer is relative
+  to the base URI. Returns a string.
+
+#### `CL-JSCHEMA:UNPARSABLE-JSON`
+
+Conditions of this type are thrown when using `CL-JSCHEMA:PARSE`. This condition
+indicates that an error was encountered when trying to parse the JSON Schema
+JSON.
+
+This condition is a subtype of `CL-JSCHEMA:INVALID-SCHEMA`, meaning the same
+information can be accessed with the same accessors. Additionally:
+
+*  `CL-JSCHEMA:UNPARSABLE-JSON-ERROR`: the condition caught when trying to parse
+   the JSON Schema JSON. Returns an instance of a condition of type
+   `COM.INUOE.JZON:JSON-ERROR`.
+
+#### `CL-JSCHEMA:NOT-IMPLEMENTED`
+
+Conditions of this type are thrown when using `CL-JSCHEMA:PARSE`. This condition
+indicates that the JSON Schema is trying to use some property which is not
+implemented by `CL-JSCHEMA`.
+
+This condition is a subtype of `CL-JSCHEMA:INVALID-SCHEMA`, meaning the same
+information can be accessed with the same accessors.
+
+#### `CL-JSCHEMA:INVALID-JSON`
+
+Conditions of this type are thrown when using `CL-JSCHEMA:VALIDATE`. This
+condition indicates that the value supplied for validation is invalid.
+
+Information about this condition can be accessed with:
+
+* `CL-JSCHEMA:INVALID-JSON-ERRORS`: a list of all conditions of type
+  `CL-JSCHEMA:INVALID-JSON-VALUE` caught while validating the value supplied for
+  validation.
+
+#### `CL-JSCHEMA:INVALID-JSON-VALUE`
+
+Conditions of this type are thrown yet handled internally when using
+`CL-JSCHEMA:VALIDATE`. This condition indicates at a particular value inside the
+supplied value for validation is invalid.
+
+* `CL-JSCHEMA:INVALID-JSON-VALUE-ERROR-MESSAGE`: the reason why the condition
+  was thrown. Returns a string.
+* `CL-JSCHEMA:INVALID-JSON-VALUE-JSON-POINTER`: the [JSON
+  Pointer](https://www.rfc-editor.org/rfc/rfc6901) to the value being validated
+  when the condition was thrown.
 
 ## Roadmap
 
