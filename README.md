@@ -189,12 +189,20 @@ Error: Number is less or equal to -1
 NIL
 ```
 
+**Pro tip**: check out
+[CL-JSON-POINTER](https://github.com/y2q-actionman/cl-json-pointer) for using
+the JSON Pointers created by `CL-JSCHEMA`.
+
 ## Roadmap
 
 * Publish in Quicklisp.
 * Publish in Ultralisp.
 * Add GitHub workflow for running `FIVEAM` test suite.
 * Include [JSON-Schema-Test-Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite).
+* Support for validating values parsed by [other Common Lisp JSON
+  libraries](https://sabracrolleton.github.io/json-review.html#libraries).
+* Support for previous [JSON Schema
+  drafts](https://json-schema.org/specification-links.html#published-drafts).
 
 ## Dependencies
 
