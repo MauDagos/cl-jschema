@@ -16,11 +16,22 @@ Common Lisp implementation of [JSON Schema](https://json-schema.org/).
 
 ## Setup
 
-`CL-JSCHEMA` is not yet in Quicklisp or Ultralisp (but it's in the
+### Quicklisp
+
+`CL-JSCHEMA` is available via the
+[Ultralisp](https://github.com/ultralisp/ultralisp) distribution:
+
+``` common-lisp
+(ql:quickload "cl-jschema")
+```
+
+`CL-JSCHEMA` is not yet in the Quicklisp distribution (but it's in the
 [roadmap](#roadmap)!).
 
-In the meantime you can clone this repository and load the system `:cl-jschema`
-with ASDF.
+### From source
+
+With ASDF, load the ASD file `cl-jschema.asd` and then load the system
+`:cl-jschema`.
 
 ## Limitations
 
@@ -200,8 +211,7 @@ the JSON Pointers created by `CL-JSCHEMA`.
 
 ## Roadmap
 
-* Publish in Quicklisp.
-* Publish in Ultralisp.
+* Publish in Quicklisp distribution.
 * Add GitHub workflow for running `FIVEAM` test suite.
 * Include [JSON-Schema-Test-Suite](https://github.com/json-schema-org/JSON-Schema-Test-Suite).
 * Support for validating values parsed by [other Common Lisp JSON
