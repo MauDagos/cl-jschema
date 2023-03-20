@@ -1,6 +1,6 @@
 (asdf:defsystem #:cl-jschema
   :serial t
-  :version "0.0.1"
+  :version "1.0.0"
   :description "Common Lisp implementation of JSON Schema"
   :author "Mauro D'Agostino"
   :license "MIT"
