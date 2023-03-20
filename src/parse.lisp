@@ -178,9 +178,11 @@ If successful, also remove the KEYWORD from the JSON-OBJECT."
 ;;; Creating Lisp instances
 
 (defun make-const-schema (json-object)
-  (alexandria:when-let ((const (gethash "const" json-object)))
-    (make-instance 'const-schema
-                   :const (parse-keyword-value "const" const json-object))))
+  (multiple-value-bind (const existsp)
+      (gethash "const" json-object)
+    (when existsp
+      (make-instance 'const-schema
+                     :const (parse-keyword-value "const" const json-object)))))
 
 
 (defun make-enum-schema (json-object)
