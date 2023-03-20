@@ -36,6 +36,12 @@
   (equal json1 json2))
 
 
+(defmethod json-equal ((json1 number) (json2 number))
+  ;; Compare numbers with '= so floats with digits of 0 are considered equal to
+  ;; integers. E.g. (= 0 0.0)
+  (= json1 json2))
+
+
 (defmethod json-equal ((json1 hash-table) (json2 hash-table))
   (and (= (hash-table-count json1)
           (hash-table-count json2))
