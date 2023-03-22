@@ -92,3 +92,25 @@
 
 (defun tracked-json-pointer ()
   (format nil "~{/~a~^~}" (reverse *tracked-json-pointer*)))
+
+
+;;; JSON Pointer escaping
+
+(defparameter *json-pointer-escape-map*
+  '(("~" . "~0")
+    ("/" . "~1")
+    ("%" . "%25"))
+  "Map of characters to their respective escaped versions according to the JSON
+Pointer RFC.")
+
+
+(defun unescape-json-pointer (json-pointer)
+  "Return the unescaped JSON Pointer of JSON-POINTER."
+  (loop
+    with unescaped-json-pointer = json-pointer
+    for (unescaped . escaped) in *json-pointer-escape-map*
+    do (setq unescaped-json-pointer
+             (cl-ppcre:regex-replace-all escaped
+                                         unescaped-json-pointer
+                                         unescaped))
+    finally (return unescaped-json-pointer)))

@@ -260,9 +260,9 @@ slots, based on the INPUT-SPEC."
   "Return a 'JSON-SCHEMA by resolving $ref from JSON-SCHEMA. Can return NIL."
   (alexandria:when-let ((ref (ref schema)))
     (let* ((fragmentp (eq #\# (char ref 0))) ; starts with '#'
-           (maybe-json-pointer (if fragmentp
-                                   (subseq ref 1)
-                                   ref)))
+           (maybe-json-pointer (unescape-json-pointer (if fragmentp
+                                                          (subseq ref 1)
+                                                          ref))))
       (or
        ;; $ref can be a JSON Pointer to an inner schema
        (get-inner-schema schema maybe-json-pointer)
