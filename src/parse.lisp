@@ -321,12 +321,18 @@ documentation."
 (defun register-schema-resource (json-schema)
   "Register JSON-SCHEMA as a Schema Resource by resolving $id against the base
 URI."
-  (let ((base-uri (base-uri json-schema))
-        (id (id json-schema)))
-    (when base-uri
-      (let ((uri-copy (puri:copy-uri base-uri)))
-        (setf (puri:uri-path uri-copy) id)
-        (register-schema (puri:render-uri uri-copy nil) json-schema)))))
+  (let* ((base-uri (base-uri json-schema))
+         (id (id json-schema))
+         (uri (puri:parse-uri id)))
+    (cond
+      ;; If this schema's $id was a URI with a host, then register the $id.
+      ((puri:uri-host uri)
+       (register-schema id json-schema))
+      ;; Else, resolve against the base URI.
+      (base-uri
+       (let ((uri-copy (puri:copy-uri base-uri)))
+         (setf (puri:uri-path uri-copy) id)
+         (register-schema (puri:render-uri uri-copy nil) json-schema))))))
 
 
 (defun register-self (json-schema)
