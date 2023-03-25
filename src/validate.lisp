@@ -91,25 +91,59 @@ Any 'INVALID-JSON-VALUE thrown by BODY is not propagated upwards."
 (defvar *evaluated-properties-map*)
 
 
-(defun call-with-tracked-property (json-object keyword body-fn)
-  (let ((properties (alexandria:ensure-gethash json-object
-                                               *evaluated-properties-map*
-                                               (cons nil nil))))
-    ;; Track the property being evaluated for this json object
-    (pushnew keyword (car properties) :test 'equal)
-    (handler-bind ((invalid-json-value
-                     (lambda (e)
-                       (declare (ignore e))
-                       ;; Track the property as being invalid
-                       (pushnew keyword (cdr properties)
-                                :test 'equal))))
-      (funcall body-fn))))
+(defun make-evaluated-properties-map ()
+  (make-hash-table :test 'eq))
 
 
-(defmacro with-tracked-property (json-object keyword &body body)
-  "Track KEYWORD as having been evaluated for JSON-OBJECT. Also tracks if
-KEYWORD is somehow invalid."
-  `(call-with-tracked-property ,json-object ,keyword (lambda () ,@body)))
+(defun tracked-properties (json-object)
+  (alexandria:ensure-gethash json-object
+                             *evaluated-properties-map*
+                             (cons nil nil)))
+
+
+(defun track-valid-property (property json-object)
+  (let ((properties (tracked-properties json-object)))
+    (pushnew property (car properties) :test 'equal)))
+
+
+(defun track-invalid-property (property json-object)
+  (let ((properties (tracked-properties json-object)))
+    (pushnew property (cdr properties) :test 'equal)))
+
+
+(defun call-with-tracked-property (json-object property body-fn)
+  ;; Track the property being evaluated for this json object
+  (track-valid-property property json-object)
+  (handler-bind ((invalid-json-value
+                   (lambda (e)
+                     (declare (ignore e))
+                     ;; Track the property as being invalid
+                     (track-invalid-property property json-object))))
+    (funcall body-fn)))
+
+
+(defmacro with-tracked-property (json-object property &body body)
+  "Track PROPERTY as having been evaluated for JSON-OBJECT. Also tracks if
+PROPERTY is somehow invalid."
+  `(call-with-tracked-property ,json-object ,property (lambda () ,@body)))
+
+
+(defun track-all-properties-as-valid (json-object)
+  (maphash (lambda (key value)
+             (declare (ignore value))
+             (track-valid-property key json-object))
+           json-object))
+
+
+(defun update-evaluated-properties-map-with-map (evaluated-properties-map
+                                                 json-object)
+  (maphash (lambda (key value)
+             (declare (ignore key))
+             (dolist (property (car value))
+               (track-valid-property property json-object))
+             (dolist (property (cdr value))
+               (track-invalid-property property json-object)))
+           evaluated-properties-map))
 
 
 ;;; Validation
@@ -214,8 +248,7 @@ KEYWORD is somehow invalid."
     (maphash (lambda (object-key object-value)
                (declare (ignore object-value))
                (with-tracked-json-pointer object-key
-                 (with-tracked-property value object-key
-                   (check-schema property-names object-key))))
+                 (check-schema property-names object-key)))
              value)))
 
 
@@ -328,13 +361,15 @@ PATTERN-PROPERTIES."
 (defun check-additional-properties (object-schema json-object)
   "Check if JSON-OBJECT fulfills the 'additionalProperties' JSON Schema in
 OBJECT-SCHEMA."
-  ;; At this point, the value must've already been validated to be a JSON
-  ;; object, so no need to gaurd against it not being one.
   (let ((properties (get-type-property object-schema "properties"))
         (additional-properties (additional-properties object-schema)))
     (etypecase additional-properties
-      ;; True: allow everything.
-      (json-true-schema)
+      ;; Unspecified: skip checking.
+      (null)
+      ;; True: allow everything. Track all properties for the sake of
+      ;; 'unevaluatedProperties'.
+      (json-true-schema
+       (track-all-properties-as-valid json-object))
       ;; False: don't allow any additional.
       (json-false-schema
        (let ((available-props (alexandria:hash-table-keys properties)))
@@ -357,16 +392,18 @@ OBJECT-SCHEMA."
 (defun check-unevaluated-properties (object-schema json-object)
   "Check if JSON-OBJECT fulfills the 'unevaluatedProperties' JSON Schema in
 OBJECT-SCHEMA."
-  ;; At this point, the value must've already been validated to be a JSON
-  ;; object, so no need to gaurd against it not being one.
   (let* ((unevaluated-properties (unevaluated-properties object-schema))
          (evaluated-properties (gethash json-object *evaluated-properties-map*))
          (validated-properties (set-difference (car evaluated-properties)
                                                (cdr evaluated-properties)
                                                :test 'equal)))
     (etypecase unevaluated-properties
-      ;; True: allow all.
-      (json-true-schema)
+      ;; Unspecified: skip checking.
+      (null)
+      ;; True: allow all. Track all properties for the sake of other
+      ;; 'unevaluatedProperties'.
+      (json-true-schema
+       (track-all-properties-as-valid json-object))
       ;; False: don't allow any unevaluated.
       (json-false-schema
        (maphash (lambda (key val)
@@ -379,7 +416,8 @@ OBJECT-SCHEMA."
        (maphash (lambda (key val)
                   (or (member key validated-properties :test 'equal)
                       (with-tracked-json-pointer key
-                        (check-schema unevaluated-properties val))))
+                        (with-tracked-property json-object key
+                          (check-schema unevaluated-properties val)))))
                 json-object)))))
 
 
@@ -387,8 +425,6 @@ OBJECT-SCHEMA."
   "Check if JSON-ARRAY fulfills the 'items' JSON Schema in ARRAY-SCHEMA.
 
 If 'prefixItems' was specified, then we only check items not covered by it."
-  ;; At this point, the value must've already been validated to be a JSON
-  ;; array, so no need to gaurd against it not being one.
   (let* ((prefix-items (get-type-property array-schema "prefixItems"))
          (items (items array-schema)))
     (etypecase items
@@ -420,8 +456,6 @@ If 'prefixItems' was specified, then we only check items not covered by it."
   "Check if JSON-ARRAY fulfills the 'contains' JSON Schema in ARRAY-SCHEMA.
 
 The values of 'minContains' and 'maxContains' are also respected."
-  ;; At this point, the value must've already been validated to be a JSON
-  ;; array, so no need to gaurd against it not being one.
   (alexandria:when-let ((contains (contains array-schema)))
     (let ((min-contains (or (min-contains array-schema) 1))
           (max-contains (max-contains array-schema))
@@ -461,14 +495,16 @@ TYPE-SCHEMA properties."
 
 (defmethod check-type-schema :after ((object-schema json-object-schema) value)
   "Check if VALUE fulfills the additional object-type only validations."
-  (check-additional-properties object-schema value)
-  (check-unevaluated-properties object-schema value))
+  (when (typep value 'hash-table)
+    (check-additional-properties object-schema value)
+    (check-unevaluated-properties object-schema value)))
 
 
 (defmethod check-type-schema :after ((array-schema json-array-schema) value)
   "Check if VALUE fulfills the additional array-type only validations."
-  (check-items array-schema value)
-  (check-contains array-schema value))
+  (when (typep value 'simple-vector)
+    (check-items array-schema value)
+    (check-contains array-schema value)))
 
 
 (defun check-condition-schemas (condition-schemas value)
@@ -491,19 +527,54 @@ JSON Schema."
          (schemas (schemas logical-schema))
          (fn (alexandria:switch (operator :test 'equal)
                ("allOf" 'every)
-               ("anyOf" 'some)
+               ("anyOf" 'some-checking-all)
                ("oneOf" 'just-once)
-               ("not"   'notany))))
-    (or (funcall fn
-                 (lambda (schema)
-                   (with-valid-json-p (check-schema schema value)))
-                 schemas)
-        (raise-invalid-json-value operator))))
+               ("not"   'notany)))
+         (evaluated-properties-map-children '())
+         (validp
+           (funcall fn
+                    (lambda (schema)
+                      ;; Because 'unevaluatedProperties' can't see what the
+                      ;; "cousin" schemas have done, use a new map with the
+                      ;; current state.
+                      (let* ((evaluated-properties-map-child
+                               (when (typep value 'hash-table)
+                                 (alexandria:copy-hash-table
+                                  *evaluated-properties-map*)))
+                             (*evaluated-properties-map*
+                               (or evaluated-properties-map-child
+                                   *evaluated-properties-map*)))
+                        (when evaluated-properties-map-child
+                          (push evaluated-properties-map-child
+                                evaluated-properties-map-children))
+                        (with-valid-json-p (check-schema schema value))))
+                    schemas)))
+    ;; Update the evaluated properties map with everything that was evaluated
+    ;; during the validations.
+    (dolist (map-child evaluated-properties-map-children)
+      (update-evaluated-properties-map-with-map map-child value))
+    (unless validp
+      (raise-invalid-json-value operator))))
 
 
 (defun check-logical-schemas (logical-schemas value)
-  (dolist (logical-schema logical-schemas)
-    (check-logical-schema logical-schema value)))
+  (let ((evaluated-properties-map-children '()))
+    (dolist (logical-schema logical-schemas)
+      ;; Because 'unevaluatedProperties' can't see what the "cousin" schemas
+      ;; have done, use a new map with the current state.
+      (let* ((evaluated-properties-map-child (when (typep value 'hash-table)
+                                               (alexandria:copy-hash-table
+                                                *evaluated-properties-map*)))
+             (*evaluated-properties-map* (or evaluated-properties-map-child
+                                             *evaluated-properties-map*)))
+        (when evaluated-properties-map-child
+          (push evaluated-properties-map-child
+                evaluated-properties-map-children))
+        (check-logical-schema logical-schema value)))
+    ;; Update the evaluated properties map with everything that was evaluated
+    ;; during the validations.
+    (dolist (map-child evaluated-properties-map-children)
+      (update-evaluated-properties-map-with-map map-child value))))
 
 
 (defun check-schema-spec (schema-spec value)
@@ -571,7 +642,7 @@ If IGNORE-UNRESOLVABLE-REFS is NIL, then when we don't find a JSON Schema with
 $ref, the value being validated will also be considered invalid. Set the keyarg
 to non-NIL to avoid these errors."
   (let ((*ignore-unresolvable-refs* ignore-unresolvable-refs)
-        (*evaluated-properties-map* (make-hash-table :test 'eq))
+        (*evaluated-properties-map* (make-evaluated-properties-map))
         (invalid-json-condition (make-condition 'invalid-json)))
     (handler-bind ((invalid-json-value
                      (lambda (e)

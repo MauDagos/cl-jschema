@@ -94,16 +94,16 @@ slots, based on the INPUT-SPEC."
 
 
 (defclass json-object-schema (json-type-schema)
-  ((additional-properties :initform (json-true-schema)
+  ((additional-properties :initform nil
                           :reader additional-properties
-                          :documentation "An instance of a 'JSON-SCHEMA. Refers
-                                          to the value of the JSON Schema keyword
-                                          'additionalProperties'.")
-   (unevaluated-properties :initform (json-true-schema)
+                          :documentation "NIL or an instance of a 'JSON-SCHEMA.
+                                          Refers to the value of the JSON Schema
+                                          keyword 'additionalProperties', if any.")
+   (unevaluated-properties :initform nil
                            :reader unevaluated-properties
-                           :documentation "An instance of a 'JSON-SCHEMA. Refers
-                                           to the value of the JSON Schema
-                                           keyword 'unevaluatedProperties'."))
+                           :documentation "NIL or an instance of a 'JSON-SCHEMA.
+                                           Refers to the value of the JSON Schema
+                                           keyword 'unevaluatedProperties', if any."))
   (:documentation "A class to represent a JSON Schema for validating a JSON
                    object."))
 

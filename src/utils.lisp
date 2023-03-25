@@ -76,6 +76,18 @@
     (= count 1)))
 
 
+(defun some-checking-all (predicate &rest sequences)
+  "Return T if PREDICATE is non-NIL at least once in SEQUENCES, but without short
+circuiting."
+  (let (validp)
+    (apply 'mapc
+           (lambda (&rest inputs)
+             (when (apply predicate inputs)
+               (setq validp t)))
+           sequences)
+    validp))
+
+
 ;;; Keeping track of a JSON Pointer
 
 (defvar *tracked-json-pointer* nil)
