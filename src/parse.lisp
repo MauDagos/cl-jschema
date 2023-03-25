@@ -186,9 +186,11 @@ If successful, also remove the KEYWORD from the JSON-OBJECT."
 
 
 (defun make-enum-schema (json-object)
-  (alexandria:when-let ((enum (gethash "enum" json-object)))
-    (make-instance 'enum-schema
-                   :items (parse-keyword-value "enum" enum json-object))))
+  (multiple-value-bind (enum existsp)
+      (gethash "enum" json-object)
+    (when existsp
+      (make-instance 'enum-schema
+                     :items (parse-keyword-value "enum" enum json-object)))))
 
 
 (defun check-colliding-type-keywords (type-properties)
@@ -251,9 +253,11 @@ JSON values."
 (defun make-annotations (json-object)
   (let ((annotations (make-hash-table :test 'equal)))
     (dolist (keyword *annotation-keywords*)
-      (alexandria:when-let ((value (gethash keyword json-object)))
-        (setf (gethash keyword annotations)
-              (parse-keyword-value keyword value json-object))))
+      (multiple-value-bind (value existsp)
+          (gethash keyword json-object)
+        (when existsp
+          (setf (gethash keyword annotations)
+                (parse-keyword-value keyword value json-object)))))
     (when (plusp (hash-table-count annotations))
       annotations)))
 
@@ -261,9 +265,11 @@ JSON values."
 (defun make-condition-schemas (json-object)
   (let ((conditions (make-hash-table :test 'equal)))
     (dolist (keyword *conditional-keywords*)
-      (alexandria:when-let ((value (gethash keyword json-object)))
-        (setf (gethash keyword conditions)
-              (parse-keyword-value keyword value json-object))))
+      (multiple-value-bind (value existsp)
+          (gethash keyword json-object)
+        (when existsp
+          (setf (gethash keyword conditions)
+                (parse-keyword-value keyword value json-object)))))
     (when (plusp (hash-table-count conditions))
       conditions)))
 
@@ -271,8 +277,8 @@ JSON values."
 (defun make-logical-schemas (json-object)
   (loop
     for keyword in *logical-keywords*
-    for value = (gethash keyword json-object)
-    when value
+    for (value existsp) = (multiple-value-list (gethash keyword json-object))
+    when existsp
       collect (make-instance 'json-logical-schema
                              :operator keyword
                              ;; 'not' expects a JSON schema. Let's ensure we

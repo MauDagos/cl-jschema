@@ -1436,19 +1436,19 @@
                   ("{\"type\":42}"
                    "\"/type\" : The value for \"type\" must be a string or an array")
                   ("{\"minLength\":\"2\"}"
-                   "\"/minLength\" : Keyword minLength expects a non-negative integer")
+                   "\"/minLength\" : Keyword minLength expects a non-negative number")
                   ("{\"minLength\":-1}"
-                   "\"/minLength\" : Keyword minLength expects a non-negative integer")
+                   "\"/minLength\" : Keyword minLength expects a non-negative number")
                   ("{\"maxLength\":\"3\"}"
-                   "\"/maxLength\" : Keyword maxLength expects a non-negative integer")
+                   "\"/maxLength\" : Keyword maxLength expects a non-negative number")
                   ("{\"maxLength\":-1}"
-                   "\"/maxLength\" : Keyword maxLength expects a non-negative integer")
+                   "\"/maxLength\" : Keyword maxLength expects a non-negative number")
                   ("{\"pattern\":42}"
                    "\"/pattern\" : Keyword pattern expects a regular expression")
                   ("{\"format\":42}"
                    "\"/format\" : Keyword format expects a string")
                   ("{\"multipleOf\":0}"
-                   "\"/multipleOf\" : Keyword multipleOf expects a positive integer")
+                   "\"/multipleOf\" : Keyword multipleOf expects a positive number")
                   ("{\"minimum\":\"42\"}"
                    "\"/minimum\" : Keyword minimum expects a number")
                   ("{\"exclusiveMinimum\":\"42\"}"
@@ -1476,13 +1476,13 @@
                   ("{\"propertyNames\":42}"
                    "\"/propertyNames\" : Keyword propertyNames expects a schema")
                   ("{\"minProperties\":\"2\"}"
-                   "\"/minProperties\" : Keyword minProperties expects a non-negative integer")
+                   "\"/minProperties\" : Keyword minProperties expects a non-negative number")
                   ("{\"minProperties\":-1}"
-                   "\"/minProperties\" : Keyword minProperties expects a non-negative integer")
+                   "\"/minProperties\" : Keyword minProperties expects a non-negative number")
                   ("{\"maxProperties\":\"3\"}"
-                   "\"/maxProperties\" : Keyword maxProperties expects a non-negative integer")
+                   "\"/maxProperties\" : Keyword maxProperties expects a non-negative number")
                   ("{\"maxProperties\":-1}"
-                   "\"/maxProperties\" : Keyword maxProperties expects a non-negative integer")
+                   "\"/maxProperties\" : Keyword maxProperties expects a non-negative number")
                   ("{\"items\": 42}"
                    "\"/items\" : Keyword items expects a schema")
                   ("{\"prefixItems\":42}"
@@ -1490,21 +1490,21 @@
                   ("{\"prefixItems\":[42]}"
                    "\"/prefixItems\" : Keyword prefixItems expects a non-empty JSON array of schemas")
                   ("{\"minContains\":\"2\"}"
-                   "\"/minContains\" : Keyword minContains expects a non-negative integer")
+                   "\"/minContains\" : Keyword minContains expects a non-negative number")
                   ("{\"minContains\":-1}"
-                   "\"/minContains\" : Keyword minContains expects a non-negative integer")
+                   "\"/minContains\" : Keyword minContains expects a non-negative number")
                   ("{\"maxContains\":\"3\"}"
-                   "\"/maxContains\" : Keyword maxContains expects a non-negative integer")
+                   "\"/maxContains\" : Keyword maxContains expects a non-negative number")
                   ("{\"maxContains\":-1}"
-                   "\"/maxContains\" : Keyword maxContains expects a non-negative integer")
+                   "\"/maxContains\" : Keyword maxContains expects a non-negative number")
                   ("{\"minItems\":\"2\"}"
-                   "\"/minItems\" : Keyword minItems expects a non-negative integer")
+                   "\"/minItems\" : Keyword minItems expects a non-negative number")
                   ("{\"minItems\":-1}"
-                   "\"/minItems\" : Keyword minItems expects a non-negative integer")
+                   "\"/minItems\" : Keyword minItems expects a non-negative number")
                   ("{\"maxItems\":\"3\"}"
-                   "\"/maxItems\" : Keyword maxItems expects a non-negative integer")
+                   "\"/maxItems\" : Keyword maxItems expects a non-negative number")
                   ("{\"maxItems\":-1}"
-                   "\"/maxItems\" : Keyword maxItems expects a non-negative integer")
+                   "\"/maxItems\" : Keyword maxItems expects a non-negative number")
                   ("{\"uniqueItems\":42}"
                    "\"/uniqueItems\" : Keyword uniqueItems expects a boolean")
                   ("{\"title\":42}"

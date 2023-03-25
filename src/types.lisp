@@ -131,6 +131,24 @@
   `(satisfies integer-like-p))
 
 
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun positive-number-p (value)
+    (and (numberp value)
+         (plusp value))))
+
+(deftype positive-number ()
+  `(and number (satisfies positive-number-p)))
+
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (defun non-negative-number-p (value)
+    (and (numberp value)
+         (>= value 0))))
+
+(deftype non-negative-number ()
+  `(and number (satisfies non-negative-number-p)))
+
+
 (deftype regex ()
   `(and string))
 

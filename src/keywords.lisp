@@ -28,14 +28,14 @@
     ;; type schema and per-type keywords
     ("type" . string-or-array-of-strings)
     ;; * string type
-    ("minLength"        . alexandria:non-negative-integer)
-    ("maxLength"        . alexandria:non-negative-integer)
+    ("minLength"        . non-negative-number)
+    ("maxLength"        . non-negative-number)
     ("pattern"          . regex)
     ("format"           . string)
     ("contentEncoding"  . string)
     ("contentMediaType" . string)
     ;; * number / integer type
-    ("multipleOf"       . alexandria:positive-integer)
+    ("multipleOf"       . positive-number)
     ("minimum"          . number)
     ("exclusiveMinimum" . number)
     ("maximum"          . number)
@@ -47,18 +47,18 @@
     ("unevaluatedProperties" . schema-like)
     ("required"              . array-of-strings)
     ("propertyNames"         . schema-like)
-    ("minProperties"         . alexandria:non-negative-integer)
-    ("maxProperties"         . alexandria:non-negative-integer)
+    ("minProperties"         . non-negative-number)
+    ("maxProperties"         . non-negative-number)
     ("dependentRequired"     . hash-table-of-array-of-strings)
     ("dependentSchemas"      . hash-table-of-schema-likes)
     ;; * array type
     ("items"       . schema-like)
     ("prefixItems" . non-empty-array-of-schema-likes)
     ("contains"    . schema-like)
-    ("minContains" . alexandria:non-negative-integer)
-    ("maxContains" . alexandria:non-negative-integer)
-    ("minItems"    . alexandria:non-negative-integer)
-    ("maxItems"    . alexandria:non-negative-integer)
+    ("minContains" . non-negative-number)
+    ("maxContains" . non-negative-number)
+    ("minItems"    . non-negative-number)
+    ("maxItems"    . non-negative-number)
     ("uniqueItems" . json-boolean)
     ;; composition
     ("allOf" . non-empty-array-of-schema-likes)
@@ -198,10 +198,10 @@ must satisfy and JSON Schema keywords which map to the type.")
         number of letters, digits, -, _, : or .")
     (number
      . "Keyword ~a expects a number")
-    (alexandria:positive-integer
-     . "Keyword ~a expects a positive integer")
-    (alexandria:non-negative-integer
-     . "Keyword ~a expects a non-negative integer")
+    (positive-number
+     . "Keyword ~a expects a positive number")
+    (non-negative-number
+     . "Keyword ~a expects a non-negative number")
     (simple-vector
      . "Keyword ~a expects a JSON array")
     (non-empty-array

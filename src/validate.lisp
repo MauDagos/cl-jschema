@@ -95,6 +95,10 @@ Any 'INVALID-JSON-VALUE thrown by BODY is not propagated upwards."
   (make-hash-table :test 'eq))
 
 
+(defun copy-evaluated-properties-map ()
+  (alexandria:copy-hash-table *evaluated-properties-map*))
+
+
 (defun tracked-properties (json-object)
   (alexandria:ensure-gethash json-object
                              *evaluated-properties-map*
@@ -193,7 +197,10 @@ PROPERTY is somehow invalid."
                                 multiple-of value)
   "Check VALUE by 'multipleOf' for MULTIPLE-OF."
   (when (numberp value)
-    (or (zerop (mod value multiple-of))
+    ;; Ignore errors where dividing floats causes an "inifinite" number
+    (or (handler-case
+            (zerop (mod value multiple-of))
+          (simple-error () nil))
         (raise-invalid-json-value keyword multiple-of))))
 
 
@@ -316,7 +323,7 @@ PATTERN-PROPERTIES."
 (defmethod check-type-property ((keyword (eql :|prefixItems|))
                                 prefix-items value)
   "Check VALUE by 'prefixItems' for JSON Schemas in PREFIX-ITEMS."
-  (when (typep value 'array)
+  (when (typep value 'simple-vector)
     (loop
       for item across value
       for index from 0
@@ -328,7 +335,7 @@ PATTERN-PROPERTIES."
 (defmethod check-type-property ((keyword (eql :|minItems|))
                                 min-items value)
   "Check VALUE by 'minItems' for MIN-ITEMS."
-  (when (typep value 'array)
+  (when (typep value 'simple-vector)
     (or (>= (length value) min-items)
         (raise-invalid-json-value keyword min-items))))
 
@@ -336,7 +343,7 @@ PATTERN-PROPERTIES."
 (defmethod check-type-property ((keyword (eql :|maxItems|))
                                 max-items value)
   "Check VALUE by 'maxItems' for MAX-ITEMS."
-  (when (typep value 'array)
+  (when (typep value 'simple-vector)
     (or (<= (length value) max-items)
         (raise-invalid-json-value keyword max-items))))
 
@@ -344,7 +351,7 @@ PATTERN-PROPERTIES."
 (defmethod check-type-property ((keyword (eql :|uniqueItems|))
                                 unique-items value)
   "Check VALUE by 'uniqueItems', if UNIQUE-ITEMS is 'true'"
-  (when (and (typep value 'array)
+  (when (and (typep value 'simple-vector)
              (json-true-p unique-items))
     (loop
       with items = value
@@ -393,7 +400,7 @@ OBJECT-SCHEMA."
   "Check if JSON-OBJECT fulfills the 'unevaluatedProperties' JSON Schema in
 OBJECT-SCHEMA."
   (let* ((unevaluated-properties (unevaluated-properties object-schema))
-         (evaluated-properties (gethash json-object *evaluated-properties-map*))
+         (evaluated-properties (tracked-properties json-object))
          (validated-properties (set-difference (car evaluated-properties)
                                                (cdr evaluated-properties)
                                                :test 'equal)))
@@ -430,11 +437,11 @@ If 'prefixItems' was specified, then we only check items not covered by it."
     (etypecase items
       ;; True: allow everything.
       (json-true-schema)
-      ;; False: don't allow any additional if prefixItems was set.
+      ;; False: don't allow any additional, depending on if prefixItems was set.
       (json-false-schema
-       (when (and prefix-items
-                  (> (length json-array)
-                     (length prefix-items)))
+       (when (if prefix-items
+                 (> (length json-array) (length prefix-items))
+                 (plusp (length json-array)))
          (raise-invalid-json-value "items")))
       ;; Schema has two cases:
       ;; If prefixItems was set: check that additional items are valid.
@@ -539,8 +546,7 @@ JSON Schema."
                       ;; current state.
                       (let* ((evaluated-properties-map-child
                                (when (typep value 'hash-table)
-                                 (alexandria:copy-hash-table
-                                  *evaluated-properties-map*)))
+                                 (copy-evaluated-properties-map)))
                              (*evaluated-properties-map*
                                (or evaluated-properties-map-child
                                    *evaluated-properties-map*)))
@@ -563,8 +569,7 @@ JSON Schema."
       ;; Because 'unevaluatedProperties' can't see what the "cousin" schemas
       ;; have done, use a new map with the current state.
       (let* ((evaluated-properties-map-child (when (typep value 'hash-table)
-                                               (alexandria:copy-hash-table
-                                                *evaluated-properties-map*)))
+                                               (copy-evaluated-properties-map)))
              (*evaluated-properties-map* (or evaluated-properties-map-child
                                              *evaluated-properties-map*)))
         (when evaluated-properties-map-child
@@ -584,12 +589,12 @@ JSON Schema."
     (json-false
      (raise-invalid-json-value "false-schema"))
     (json-schema-spec
-     ;; The order of these steps doesn't seem to matter, but leave the type
-     ;; schema step the last for being able to validate 'unevaluatedProperties'.
      (alexandria:when-let ((logical-schemas (logical-schemas schema-spec)))
        (check-logical-schemas logical-schemas value))
      (alexandria:when-let ((condition-schemas (condition-schemas schema-spec)))
        (check-condition-schemas condition-schemas value))
+     ;; Leave this step for last for being able to validate
+     ;; 'additionalProperties' and 'unevaluatedProperties'.
      (alexandria:when-let ((type-schema (type-schema schema-spec)))
        (check-type-schema type-schema value)))))
 
