@@ -115,6 +115,20 @@ Any 'INVALID-JSON-VALUE thrown by BODY is not propagated upwards."
     (pushnew property (cdr properties) :test 'equal)))
 
 
+(defun tracked-evaluated-properties (json-object)
+  (car (tracked-properties json-object)))
+
+
+(defun tracked-invalid-properties (json-object)
+  (cdr (tracked-properties json-object)))
+
+
+(defun tracked-valid-properties (json-object)
+  (set-difference (tracked-evaluated-properties json-object)
+                  (tracked-invalid-properties json-object)
+                  :test 'equal))
+
+
 (defun call-with-tracked-property (json-object property body-fn)
   ;; Track the property being evaluated for this json object
   (track-valid-property property json-object)
@@ -400,10 +414,10 @@ OBJECT-SCHEMA."
   "Check if JSON-OBJECT fulfills the 'unevaluatedProperties' JSON Schema in
 OBJECT-SCHEMA."
   (let* ((unevaluated-properties (unevaluated-properties object-schema))
-         (evaluated-properties (tracked-properties json-object))
-         (validated-properties (set-difference (car evaluated-properties)
-                                               (cdr evaluated-properties)
-                                               :test 'equal)))
+         (pending-properties
+           (set-difference (alexandria:hash-table-keys json-object)
+                           (tracked-valid-properties json-object)
+                           :test 'equal)))
     (etypecase unevaluated-properties
       ;; Unspecified: skip checking.
       (null)
@@ -413,19 +427,15 @@ OBJECT-SCHEMA."
        (track-all-properties-as-valid json-object))
       ;; False: don't allow any unevaluated.
       (json-false-schema
-       (maphash (lambda (key val)
-                  (declare (ignore val))
-                  (or (member key validated-properties :test 'equal)
-                      (raise-invalid-json-value "additionalProperties" key)))
-                json-object))
+       (dolist (property pending-properties)
+         (raise-invalid-json-value "additionalProperties" property)))
       ;; Schema: only allow unevaluated if they're valid.
       (json-schema
-       (maphash (lambda (key val)
-                  (or (member key validated-properties :test 'equal)
-                      (with-tracked-json-pointer key
-                        (with-tracked-property json-object key
-                          (check-schema unevaluated-properties val)))))
-                json-object)))))
+       (dolist (property pending-properties)
+         (with-tracked-json-pointer property
+           (with-tracked-property json-object property
+             (check-schema unevaluated-properties
+                           (gethash property json-object)))))))))
 
 
 (defun check-items (array-schema json-array)
