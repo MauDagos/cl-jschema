@@ -207,6 +207,27 @@ PROPERTY is somehow invalid."
         (raise-invalid-json-value keyword (regex-string pattern)))))
 
 
+(defmethod check-type-property ((keyword (eql :|format|))
+                                format value)
+  "[NOT IMPLEMENTED] Check VALUE by 'format' for FORMAT."
+  (declare (ignore format value))
+  nil)
+
+
+(defmethod check-type-property ((keyword (eql :|contentMediaType|))
+                                content-media-type value)
+  "[NOT IMPLEMENTED] Check VALUE by 'contentMediaType' for CONTENT-MEDIA-TYPE."
+  (declare (ignore content-media-type value))
+  nil)
+
+
+(defmethod check-type-property ((keyword (eql :|contentEncoding|))
+                                content-encoding value)
+  "[NOT IMPLEMENTED] Check VALUE by 'contentEncoding' for CONTENT-ENCODING."
+  (declare (ignore content-encoding value))
+  nil)
+
+
 (defmethod check-type-property ((keyword (eql :|multipleOf|))
                                 multiple-of value)
   "Check VALUE by 'multipleOf' for MULTIPLE-OF."
