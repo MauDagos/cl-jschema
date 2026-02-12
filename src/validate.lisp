@@ -25,7 +25,8 @@ Also create an restart named 'CONTINUE-VALIDATING."
     (with-simple-restart (continue-validating "Continue validating the JSON")
       (error 'invalid-json-value
              :error-message (format nil format-message value)
-             :json-pointer (tracked-json-pointer)))))
+             :json-pointer (tracked-json-pointer)))
+    t))
 
 
 (define-condition unresolvable-ref (invalid-json-value) ())
