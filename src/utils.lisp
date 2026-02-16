@@ -48,8 +48,8 @@
        (loop
          for key1 being the hash-key in json1
            using (hash-value value1)
-         for value2 = (gethash key1 json2)
-         always (json-equal value1 value2))))
+         for (value2 value2p) = (multiple-value-list (gethash key1 json2))
+         always (and value2p (json-equal value1 value2)))))
 
 
 (defmethod json-equal ((json1 array) (json2 array))
