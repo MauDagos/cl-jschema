@@ -235,19 +235,20 @@ JSON values."
     ;; Validate
     (check-colliding-type-keywords type-properties)
     ;; Return the correct instance
-    (let* ((type-prop (gethash :|type| type-properties))
-           (type (or (when type-prop (value type-prop))
-                     ;; If 'type' was unspecified, then infer it from other
-                     ;; keywords
-                     (loop
-                       for keyword-prop being the hash-values in type-properties
-                       thereis (type-for-keyword (key keyword-prop))))))
-      (when type
-        (make-instance (alexandria:switch (type :test 'equal)
-                         ("object" 'json-object-schema)
-                         ("array"  'json-array-schema)
-                         (t        'json-basic-type-schema))
-                       :type-properties type-properties)))))
+    (multiple-value-bind (type-prop type-prop-exists-p)
+        (gethash :|type| type-properties)
+      (let* ((type (or (when type-prop-exists-p (value type-prop))
+                       ;; If 'type' was unspecified, then infer it from other
+                       ;; keywords
+                       (loop
+                         for keyword-prop being the hash-values in type-properties
+                           thereis (type-for-keyword (key keyword-prop))))))
+        (when type
+          (make-instance (alexandria:switch (type :test 'equal)
+                           ("object" 'json-object-schema)
+                           ("array"  'json-array-schema)
+                           (t        'json-basic-type-schema))
+                         :type-properties type-properties))))))
 
 
 (defun make-annotations (json-object)

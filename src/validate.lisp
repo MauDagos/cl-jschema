@@ -277,10 +277,11 @@ PROPERTY is somehow invalid."
   "Check VALUE by 'properties' for JSON Schemas in PROPERTIES."
   (when (typep value 'hash-table)
     (maphash (lambda (key json-schema)
-               (alexandria:when-let ((object-value (gethash key value)))
-                 (with-tracked-json-pointer key
-                   (with-tracked-property value key
-                     (check-schema json-schema object-value)))))
+               (multiple-value-bind (object-value existsp) (gethash key value)
+                 (when existsp
+                   (with-tracked-json-pointer key
+                     (with-tracked-property value key
+                       (check-schema json-schema object-value))))))
              properties)))
 
 
@@ -316,7 +317,7 @@ PATTERN-PROPERTIES."
   (when (and (typep value 'hash-table) required)
     (loop
       for field in required
-      always (or (gethash field value)
+      always (or (nth-value 1 (gethash field value))
                  (raise-invalid-json-value keyword field)))))
 
 
@@ -325,7 +326,7 @@ PATTERN-PROPERTIES."
   "Check VALUE by 'dependentRequired' for DEPENDENT-REQUIRED."
   (when (typep value 'hash-table)
     (maphash (lambda (dependent required)
-               (when (gethash dependent value)
+               (when (nth-value 1 (gethash dependent value))
                  (check-type-property :|required| required value)))
              dependent-required)))
 
@@ -335,7 +336,7 @@ PATTERN-PROPERTIES."
   "Check VALUE by 'dependentSchemas' for JSON Schemas in DEPENDENT-SCHEMAS."
   (when (typep value 'hash-table)
     (maphash (lambda (dependent schema)
-               (when (gethash dependent value)
+               (when (nth-value 1 (gethash dependent value))
                  (check-schema schema value)))
              dependent-schemas)))
 
@@ -456,6 +457,9 @@ OBJECT-SCHEMA."
        (dolist (property pending-properties)
          (with-tracked-json-pointer property
            (with-tracked-property json-object property
+             ;; TODO: what should we do here if the property
+             ;; does not exist in the object
+             ;; (i.e. GETHASH returns NIL as secondary value?)
              (check-schema unevaluated-properties
                            (gethash property json-object)))))))))
 
@@ -549,15 +553,15 @@ TYPE-SCHEMA properties."
 (defun check-condition-schemas (condition-schemas value)
   "Check if VALUE fulfills the conditional JSON Schemas, if there's an 'if'
 JSON Schema."
-  (let ((if-schema   (gethash "if"   condition-schemas))
-        (then-schema (gethash "then" condition-schemas))
-        (else-schema (gethash "else" condition-schemas)))
-    (when if-schema
-      (if (with-valid-json-p (check-schema if-schema value))
-          (when then-schema
-            (check-schema then-schema value))
-          (when else-schema
-            (check-schema else-schema value))))))
+  (multiple-value-bind (if-schema if-schema-p) (gethash "if" condition-schemas)
+    (multiple-value-bind (then-schema then-schema-p) (gethash "then" condition-schemas)
+      (multiple-value-bind (else-schema else-schema-p) (gethash "else" condition-schemas)
+        (when if-schema-p
+          (if (with-valid-json-p (check-schema if-schema value))
+              (when then-schema-p
+                (check-schema then-schema value))
+              (when else-schema-p
+                (check-schema else-schema value))))))))
 
 
 (defmethod check-logical-schema ((logical-schema json-logical-schema) value)

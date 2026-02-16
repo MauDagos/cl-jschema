@@ -1581,6 +1581,25 @@
   (signals cl-jschema:not-implemented "\"\" : No support for $schema \"http://json-schema.org/draft-07/schema\""
     (cl-jschema:parse "{ \"$schema\": \"http://json-schema.org/draft-07/schema\" }")))
 
+
+(cl-jschema-test :false-required-property
+  (let ((schema (cl-jschema:parse (com.inuoe.jzon:parse "{
+  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",
+  \"type\": \"object\",
+  \"properties\": {
+    \"foo\": {
+      \"type\": \"boolean\"
+    }
+  },
+  \"required\": [ \"foo\" ]
+}
+")))
+        (object (jzon:parse "{ \"foo\": false }")))
+    (5am:is-true (cl-jschema:validate schema object))
+    (multiple-value-bind (value existsp) (gethash "foo" object)
+      (5am:is-false value)
+      (5am:is-true existsp))))
+
 (cl-jschema-test :all-json-errors-present
   (let ((schema (cl-jschema:parse (jzon:parse "{
   \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",

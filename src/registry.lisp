@@ -27,15 +27,18 @@ If URI contains a fragment, then it's either:
 If a fragment is given and we don't find an inner schema with the fragment, we
 return NIL.")
   (:method ((uri string))
-    (or (gethash uri *registry*)
-        (get-schema (puri:parse-uri uri))))
+    (multiple-value-bind (value existsp) (gethash uri *registry*)
+      (if existsp
+          value
+          (get-schema (puri:parse-uri uri)))))
   (:method ((uri puri:uri))
     (let ((subschema-id (puri:uri-fragment uri))
           (uri-copy (puri:copy-uri uri)))
       (setf (puri:uri-fragment uri-copy) nil)
-      (let* ((id (puri:render-uri uri-copy nil))
-             (json-schema (gethash id *registry*)))
-        (when json-schema
-          (if subschema-id
-              (get-inner-schema json-schema subschema-id)
-              json-schema))))))
+      (let* ((id (puri:render-uri uri-copy nil)))
+        (multiple-value-bind (json-schema json-schema-exists-p)
+            (gethash id *registry*)
+          (when json-schema-exists-p
+            (if subschema-id
+                (get-inner-schema json-schema subschema-id)
+                json-schema)))))))
