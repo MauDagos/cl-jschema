@@ -27,7 +27,7 @@
     (hash-table-of-type-p hash-table 'schema-like)))
 
 (deftype hash-table-of-schema-likes ()
-  `(and hash-table (satisfies hash-table-of-schema-likes-p)))
+  '(and hash-table (satisfies hash-table-of-schema-likes-p)))
 
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -35,7 +35,7 @@
     (hash-table-of-type-p hash-table 'array-of-strings)))
 
 (deftype hash-table-of-array-of-strings ()
-  `(and hash-table (satisfies hash-table-of-array-of-strings-p)))
+  '(and hash-table (satisfies hash-table-of-array-of-strings-p)))
 
 
 ;;; JSON arrays
@@ -46,7 +46,7 @@
          (plusp (length array)))))
 
 (deftype non-empty-array ()
-  `(and simple-vector (satisfies non-empty-array-p)))
+  '(and simple-vector (satisfies non-empty-array-p)))
 
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -54,7 +54,7 @@
     (array-of-type-p array 'string)))
 
 (deftype array-of-strings ()
-  `(and simple-vector (satisfies array-of-strings-p)))
+  '(and simple-vector (satisfies array-of-strings-p)))
 
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -62,7 +62,7 @@
     (array-of-type-p array 'hash-table)))
 
 (deftype array-of-hash-tables ()
-  `(and simple-vector (satisfies array-of-hash-tables-p)))
+  '(and simple-vector (satisfies array-of-hash-tables-p)))
 
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -70,28 +70,28 @@
     (array-of-type-p array 'schema-like)))
 
 (deftype non-empty-array-of-schema-likes ()
-  `(and non-empty-array (satisfies array-of-schema-likes-p)))
+  '(and non-empty-array (satisfies array-of-schema-likes-p)))
 
 
 ;;; JSON symbols
 
 (deftype json-null ()
-  `(satisfies json-null-p))
+  '(eql null))
 
 (deftype json-true ()
-  `(satisfies json-true-p))
+  '(eql t))
 
 (deftype json-false ()
-  `(satisfies json-false-p))
+  '(eql nil))
 
 (deftype json-boolean ()
-  `(or json-true json-false))
+  '(or json-true json-false))
 
 
 ;;; JSON Schema
 
 (deftype schema-like ()
-  `(or json-boolean hash-table))
+  '(or json-boolean hash-table))
 
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -101,7 +101,7 @@
          (json-true-p (schema-spec json-schema)))))
 
 (deftype json-true-schema ()
-  `(and json-schema (satisfies json-true-schema-p)))
+  '(and json-schema (satisfies json-true-schema-p)))
 
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -111,13 +111,13 @@
          (json-false-p (schema-spec json-schema)))))
 
 (deftype json-false-schema ()
-  `(and json-schema (satisfies json-false-schema-p)))
+  '(and json-schema (satisfies json-false-schema-p)))
 
 
 ;;; Others / helpers
 
 (deftype string-or-array-of-strings ()
-  `(or string array-of-strings))
+  '(or string array-of-strings))
 
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -128,29 +128,32 @@
              (zerop (mod value 1))))))
 
 (deftype integer-like ()
-  `(satisfies integer-like-p))
+  '(satisfies integer-like-p))
 
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun positive-number-p (value)
-    (and (numberp value)
-         (plusp value))))
 
 (deftype positive-number ()
-  `(and number (satisfies positive-number-p)))
+  '(real (0)))
 
-
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (defun non-negative-number-p (value)
-    (and (numberp value)
-         (>= value 0))))
 
 (deftype non-negative-number ()
-  `(and number (satisfies non-negative-number-p)))
+  '(real 0))
 
+
+(deftype positive-integer ()
+  '(integer (0)))
+
+
+(deftype non-negative-integer ()
+  '(integer 0))
+
+
+(defun regexp (x)
+  (and (stringp x)
+       (handler-case (cl-ppcre:parse-string x)
+         (cl-ppcre:ppcre-syntax-error () nil))))
 
 (deftype regex ()
-  `(and string))
+  '(and string (satisfies regexp)))
 
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -160,7 +163,7 @@
          (not (null (ignore-errors (puri:parse-uri value)))))))
 
 (deftype uri-reference ()
-  `(and string (satisfies uri-reference-p)))
+  '(and string (satisfies uri-reference-p)))
 
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -169,7 +172,7 @@
          (null (puri:uri-fragment (puri:parse-uri value))))))
 
 (deftype uri-reference-without-fragment ()
-  `(and uri-reference (satisfies uri-reference-without-fragment-p)))
+  '(and uri-reference (satisfies uri-reference-without-fragment-p)))
 
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -182,4 +185,4 @@
                      value))))
 
 (deftype anchor-like ()
-  `(and string (satisfies anchor-like-p)))
+  '(and string (satisfies anchor-like-p)))

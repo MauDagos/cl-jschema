@@ -3,16 +3,10 @@
 
 ;;; Generic
 
-(defvar *debug-tests* nil)
-
-
 (defun call-cl-jschema-test (name body-fn)
   (declare (ignore name))
-  (handler-bind ((error (lambda (e)
-                          (when *debug-tests*
-                            (invoke-debugger e)))))
-    (let ((cl-jschema::*registry* (make-hash-table :test 'equal)))
-      (funcall body-fn))))
+  (let ((cl-jschema::*registry* (make-hash-table :test 'equal)))
+    (funcall body-fn)))
 
 
 (defmacro cl-jschema-test (name &body body)
@@ -21,13 +15,18 @@
 
 
 (defmacro signals (condition-type message &body body)
-  (alexandria:with-gensyms (e body-fn)
-    `(let ((,body-fn (lambda () ,@body)))
-       (5am:signals ,condition-type (funcall ,body-fn))
-       (5am:is (equal ,message (handler-case
-                                   (funcall ,body-fn)
-                                 (,condition-type (,e)
-                                   (format nil "~a" ,e))))))))
+  (a:with-gensyms (e values)
+    `(handler-case (locally ,@body)
+       (,condition-type (,e)
+         (5am:is (equal ,message (format nil "~a" ,e))))
+       (error (,e)
+         (5am:fail
+             "Expected ~S to be signaled, but ~S was signaled instead"
+             ',condition-type ,e))
+       (:no-error (&rest ,values)
+         (5am:fail
+             "Expected ~S to be signaled, but ~S was returned instead"
+             ',condition-type (cons 'values ,values))))))
 
 
 ;;; JSON Schema testing
@@ -38,43 +37,43 @@
 
 
 (defun valid-json (json-schema &rest json-input)
-  (apply 'valid-value json-schema (mapcar 'jzon:parse json-input)))
+  (apply #'valid-value json-schema (mapcar 'jzon:parse json-input)))
 
 
 (defun invalid-value (json-schema value error-message)
-  (if (alexandria:starts-with-subseq "JSON Schema validation found"
-                                     error-message
-                                     :test 'equal)
+  (if (a:starts-with-subseq "JSON Schema validation found"
+                            error-message
+                            :test 'equal)
       (let (invalid-json-error
             (value-error-messages (split-error-message error-message)))
         (5am:signals cl-jschema:invalid-json
-            (handler-bind ((cl-jschema:invalid-json
-                             (lambda (e)
-                               (setq invalid-json-error e))))
-              (cl-jschema:validate json-schema value)))
+          (handler-bind ((cl-jschema:invalid-json
+                           (lambda (e)
+                             (setq invalid-json-error e))))
+            (cl-jschema:validate json-schema value)))
         (when invalid-json-error
           (let ((error-messages (mapcar (lambda (value-error)
                                           (format nil "~a" value-error))
                                         (cl-jschema:invalid-json-errors invalid-json-error))))
             (5am:is (null (set-difference value-error-messages error-messages
                                           :test 'equal))
-                    "Validation with JSON Schema threw errors:~
+                    "Validation with JSON Schema signaled errors:~
                      ~{~%~a~^~}~%~
                      Expected:~%~
                      ~{~a~^~%~}"
                     error-messages
                     value-error-messages))))
       (signals cl-jschema:invalid-json-value error-message
-        (handler-case
-            (cl-jschema:validate json-schema value)
-          (cl-jschema:invalid-json (e)
-            (let* ((errors (cl-jschema:invalid-json-errors e))
-                   (count (length errors)))
-              (if (= 1 count)
-                  (error (first errors))
-                  (5am:fail "Testing invalid JSON for one error, but got ~d.~2%~
+               (handler-case
+                   (cl-jschema:validate json-schema value)
+                 (cl-jschema:invalid-json (e)
+                   (let* ((errors (cl-jschema:invalid-json-errors e))
+                          (count (length errors)))
+                     (if (= 1 count)
+                         (error (first errors))
+                         (5am:fail "Testing invalid JSON for one error, but got ~d.~2%~
                              Testing value ~s for message ~s"
-                            count value error-message))))))))
+                                   count value error-message))))))))
 
 
 (defun invalid-values (json-schema value-input)

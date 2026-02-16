@@ -28,8 +28,8 @@
     ;; type schema and per-type keywords
     ("type" . string-or-array-of-strings)
     ;; * string type
-    ("minLength"        . non-negative-number)
-    ("maxLength"        . non-negative-number)
+    ("minLength"        . non-negative-integer)
+    ("maxLength"        . non-negative-integer)
     ("pattern"          . regex)
     ("format"           . string)
     ("contentEncoding"  . string)
@@ -47,18 +47,18 @@
     ("unevaluatedProperties" . schema-like)
     ("required"              . array-of-strings)
     ("propertyNames"         . schema-like)
-    ("minProperties"         . non-negative-number)
-    ("maxProperties"         . non-negative-number)
+    ("minProperties"         . non-negative-integer)
+    ("maxProperties"         . non-negative-integer)
     ("dependentRequired"     . hash-table-of-array-of-strings)
     ("dependentSchemas"      . hash-table-of-schema-likes)
     ;; * array type
     ("items"       . schema-like)
     ("prefixItems" . non-empty-array-of-schema-likes)
     ("contains"    . schema-like)
-    ("minContains" . non-negative-number)
-    ("maxContains" . non-negative-number)
-    ("minItems"    . non-negative-number)
-    ("maxItems"    . non-negative-number)
+    ("minContains" . non-negative-integer)
+    ("maxContains" . non-negative-integer)
+    ("minItems"    . non-negative-integer)
+    ("maxItems"    . non-negative-integer)
     ("uniqueItems" . json-boolean)
     ;; composition
     ("allOf" . non-empty-array-of-schema-likes)
@@ -74,7 +74,7 @@
 
 (defun keyword-type (keyword)
   "Return the expected Lisp type for JSON Schema KEYWORD."
-  (cdr (assoc keyword *keyword-specs* :test 'equal)))
+  (a:assoc-value *keyword-specs* keyword :test 'equal))
 
 
 ;;; Annotations
@@ -161,11 +161,15 @@ must satisfy and JSON Schema keywords which map to the type.")
 
 (defparameter *type-keywords*
   (append (list "type")
-          (remove-duplicates (alexandria:flatten
+          (remove-duplicates (a:flatten
                               (mapcar 'type-spec-keywords *type-specs*))
                              :test 'equal))
   "The list of allowed JSON Schema keywords for defining a valid value.")
 
+;; Protect against internboming: we INTERN all keywords ahead of time,
+;; so that ADD-TO-TYPE-PROPERTIES needs to only FIND-SYMBOL at runtime.
+(dolist (keyword *type-keywords*)
+  (intern keyword :keyword))
 
 (defun type-spec (type)
   "Return the TYPE-SPEC for JSON Schema keyword TYPE."
@@ -202,6 +206,10 @@ must satisfy and JSON Schema keywords which map to the type.")
      . "Keyword ~a expects a positive number")
     (non-negative-number
      . "Keyword ~a expects a non-negative number")
+    (positive-integer
+     . "Keyword ~a expects a positive integer")
+    (non-negative-integer
+     . "Keyword ~a expects a non-negative integer")
     (simple-vector
      . "Keyword ~a expects a JSON array")
     (non-empty-array
