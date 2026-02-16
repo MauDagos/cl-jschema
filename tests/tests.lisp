@@ -1599,3 +1599,39 @@
     (multiple-value-bind (value existsp) (gethash "foo" object)
       (5am:is-false value)
       (5am:is-true existsp))))
+
+(cl-jschema-test :all-json-errors-present
+  (let ((schema (cl-jschema:parse (jzon:parse "{
+  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",
+  \"type\": \"object\",
+  \"properties\": {
+    \"foo\": {
+      \"type\": \"boolean\"
+    },
+    \"bar\": {
+      \"type\": \"boolean\"
+    },
+    \"baz\": {
+      \"type\": \"boolean\"
+    },
+    \"quux\": {
+      \"type\": \"boolean\"
+    }
+  },
+  \"required\": [ \"foo\", \"bar\", \"baz\", \"quux\" ]
+}
+")))
+        (object (jzon:parse "{ \"foo\": false }")))
+    (handler-case (cl-jschema:validate schema object)
+      (cl-jschema:invalid-json (e)
+        (let ((errors (cl-jschema:invalid-json-errors e)))
+          (5am:is (= 3 (length errors)))
+          (flet ((find-error (property)
+                   (let ((string (format nil "Required property \"~A\" not found" property)))
+                     (5am:is-true (find string errors :key #'cl-jschema:invalid-json-value-error-message
+                                                      :test #'string=)))))
+            (find-error "bar")
+            (find-error "baz")
+            (find-error "quux"))))
+      (t (e) (5am:fail "Invalid error signaled: ~S" e))
+      (:no-error (x) (5am:fail "Expected an error, got ~S" x)))))
