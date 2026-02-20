@@ -61,7 +61,7 @@
 
 
 (defun add-to-type-properites (keyword value type-properties)
-  (setf (gethash (alexandria:make-keyword keyword) type-properties)
+  (setf (gethash (find-symbol keyword :keyword) type-properties)
         (make-instance 'json-schema-type-property
                        :key keyword
                        :value value)))
@@ -69,8 +69,7 @@
 
 (defmethod get-type-property ((type-schema json-type-schema) keyword)
   (multiple-value-bind (type-prop existsp)
-      (gethash (alexandria:make-keyword keyword)
-               (type-properties type-schema))
+      (gethash (find-symbol keyword :keyword) (type-properties type-schema))
     (values (when type-prop (value type-prop))
             existsp)))
 
@@ -85,22 +84,22 @@
 slots, based on the INPUT-SPEC."
   (loop
     with type-properties = (type-properties type-schema)
-    for (keyword slot-name) in input-spec
+    for (keyword writer) in input-spec
     do (multiple-value-bind (value existsp)
            (get-type-property type-schema keyword)
          (when existsp
-           (setf (slot-value type-schema slot-name) value)
-           (remhash (alexandria:make-keyword keyword) type-properties)))))
+           (funcall writer value type-schema)
+           (remhash (find-symbol keyword :keyword) type-properties)))))
 
 
 (defclass json-object-schema (json-type-schema)
   ((additional-properties :initform nil
-                          :reader additional-properties
+                          :accessor additional-properties
                           :documentation "NIL or an instance of a 'JSON-SCHEMA.
                                           Refers to the value of the JSON Schema
                                           keyword 'additionalProperties', if any.")
    (unevaluated-properties :initform nil
-                           :reader unevaluated-properties
+                           :accessor unevaluated-properties
                            :documentation "NIL or an instance of a 'JSON-SCHEMA.
                                            Refers to the value of the JSON Schema
                                            keyword 'unevaluatedProperties', if any."))
@@ -111,27 +110,27 @@ slots, based on the INPUT-SPEC."
 (defmethod initialize-instance :after ((object-schema json-object-schema) &key)
   (sanitize-schema-object
    object-schema
-   '(("additionalProperties"  additional-properties)
-     ("unevaluatedProperties" unevaluated-properties))))
+   `(("additionalProperties"  ,#'(setf additional-properties))
+     ("unevaluatedProperties" ,#'(setf unevaluated-properties)))))
 
 
 (defclass json-array-schema (json-type-schema)
   ((items :initform (json-true-schema)
-          :reader items
+          :accessor items
           :documentation "An instance of a 'JSON-SCHEMA. Refers to the value of
                           the JSON Schema keyword 'items'.")
    (contains :initform nil
-             :reader contains
+             :accessor contains
              :documentation "NIL or an instance of a 'JSON-SCHEMA. Refers to the
                              value of the JSON Schema keyword 'contains', if
                              specified.")
    (min-contains :initform nil
-                 :reader min-contains
+                 :accessor min-contains
                  :documentation "NIL or an integer. Refers to the value of the
                                  JSON Schema keyword 'minContains', if
                                  specified.")
    (max-contains :initform nil
-                 :reader max-contains
+                 :accessor max-contains
                  :documentation "NIL or an integer. Refers to the value of the
                                  JSON Schema keyword 'maxContains', if
                                  specified."))
@@ -142,10 +141,10 @@ slots, based on the INPUT-SPEC."
 (defmethod initialize-instance :after ((array-schema json-array-schema) &key)
   (sanitize-schema-object
    array-schema
-   '(("items"       items)
-     ("contains"    contains)
-     ("minContains" min-contains)
-     ("maxContains" max-contains))))
+   `(("items"       ,#'(setf items))
+     ("contains"    ,#'(setf contains))
+     ("minContains" ,#'(setf min-contains))
+     ("maxContains" ,#'(setf max-contains)))))
 
 
 ;;; Logical operations
@@ -258,7 +257,7 @@ slots, based on the INPUT-SPEC."
 
 (defmethod get-schema-from-ref ((schema json-schema))
   "Return a 'JSON-SCHEMA by resolving $ref from JSON-SCHEMA. Can return NIL."
-  (alexandria:when-let ((ref (ref schema)))
+  (a:when-let ((ref (ref schema)))
     (let* ((fragmentp (eq #\# (char ref 0))) ; starts with '#'
            (maybe-json-pointer (unescape-json-pointer (if fragmentp
                                                           (subseq ref 1)
@@ -270,7 +269,7 @@ slots, based on the INPUT-SPEC."
        (get-schema (puri:parse-uri ref))
        ;; $ref resolves against the base URI, if any. $ref can be either a path
        ;; or a fragment.
-       (alexandria:when-let ((base-uri (base-uri schema)))
+       (a:when-let ((base-uri (base-uri schema)))
          (let ((uri-copy (puri:copy-uri base-uri)))
            (if fragmentp
                (setf (puri:uri-fragment uri-copy) maybe-json-pointer)

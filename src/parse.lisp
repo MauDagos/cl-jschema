@@ -73,7 +73,7 @@
 
 (defun check-keyword-value-type (keyword value)
   "Check if VALUE fulfills KEYWORD's Lisp type. Return T if so."
-  (alexandria:when-let ((type (keyword-type keyword)))
+  (a:when-let ((type (keyword-type keyword)))
     (cond
       ((equal keyword "type")
        (check-type-value value))
@@ -116,12 +116,9 @@
 
 
 (defun parse-regex (string)
-  (handler-case
-      (make-instance 'regex-box
-                     :regex-string string
-                     :regex (ppcre:create-scanner string))
-    (ppcre:ppcre-syntax-error ()
-      (raise-invalid-schema "This regex is not valid: ~a" string))))
+  (make-instance 'regex-box
+                 :regex-string string
+                 :regex (ppcre:create-scanner string)))
 
 
 (defun parse-pattern-properties (json-object)
@@ -196,7 +193,7 @@ If successful, also remove the KEYWORD from the JSON-OBJECT."
 (defun check-colliding-type-keywords (type-properties)
   "Check if any of the keywords in TYPE-PROPERTIES refer to different types of
 JSON values."
-  (let* ((props (alexandria:hash-table-values type-properties))
+  (let* ((props (a:hash-table-values type-properties))
          (type-prop (find "type" props :key 'key :test 'equal))
          (type (when type-prop (value type-prop)))
          (keywords (mapcar 'key
@@ -210,7 +207,7 @@ JSON values."
                 (raise-invalid-schema "Keyword ~a is for type ~a, not for type ~a"
                                       keyword kw-type type)))))
         (dolist (keyword keywords)
-          (alexandria:when-let ((kw-type (type-for-keyword keyword)))
+          (a:when-let ((kw-type (type-for-keyword keyword)))
             (dolist (other-keyword keywords)
               (unless (or (equal keyword other-keyword)
                           (equal kw-type (type-for-keyword other-keyword)))
@@ -244,7 +241,7 @@ JSON values."
                          for keyword-prop being the hash-values in type-properties
                            thereis (type-for-keyword (key keyword-prop))))))
         (when type
-          (make-instance (alexandria:switch (type :test 'equal)
+          (make-instance (a:switch (type :test 'equal)
                            ("object" 'json-object-schema)
                            ("array"  'json-array-schema)
                            (t        'json-basic-type-schema))
@@ -284,7 +281,7 @@ JSON values."
                              :operator keyword
                              ;; 'not' expects a JSON schema. Let's ensure we
                              ;; use a list here for easier validation.
-                             :schemas (alexandria:ensure-list
+                             :schemas (a:ensure-list
                                        (parse-keyword-value keyword value
                                                             json-object)))))
 

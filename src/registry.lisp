@@ -4,13 +4,18 @@
 (defvar *registry* (make-hash-table :test 'equal)
   "Map of URI-reference strings to 'JSON-SCHEMA objects")
 
+;;; Entrypoints
 
+;; TODO make registration optional.
 (defun register-schema (id json-schema)
   "Store JSON-SCHEMA in the registry with id ID."
   (setf (gethash id *registry*) json-schema))
 
 
-;;; Entrypoints
+(defun unregister-schema (id)
+  "Remove the JSON-SCHEMA with the provided ID from the registry."
+  (remhash id *registry*))
+
 
 (defun clear-registry ()
   "Clear the registry of parsed JSON Schemas."

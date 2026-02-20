@@ -1,12 +1,15 @@
 (defpackage #:cl-jschema
   (:use #:cl)
-  (:local-nicknames (#:jzon #:com.inuoe.jzon))
+  (:local-nicknames (#:jzon #:com.inuoe.jzon)
+                    (#:a #:alexandria))
   (:export
    ;; JSON Schema entrypoints
    #:parse
    #:validate
    #:clear-registry
    #:get-schema
+   #:register-schema
+   #:unregister-schema
    ;; JSON Schema object
    #:json-schema
    ;; Invalid JSON Schema conditions

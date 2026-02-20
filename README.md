@@ -50,12 +50,12 @@ With ASDF, load the ASD file `cl-jschema.asd` and then load the system
 
 #### `CL-JSCHEMA:PARSE`
 
-Parse a JSON Schema. Returns an instance of `CL-JSCHEMA:JSON-SCHEMA` or throws a
+Parse a JSON Schema. Returns an instance of `CL-JSCHEMA:JSON-SCHEMA` or signals a
 condition of type `CL-JSCHEMA:INVALID-SCHEMA`.
 
 Allows parsing a string or a `CL:STREAM`. You may also supply it a previously
 parsed JSON that was parsed with `COM.INUOE.JZON:PARSE`. In any other case, a
-condition of type `CL:ERROR` is thrown.
+condition of type `CL:ERROR` is signaled.
 
 Keyword arguments:
 
@@ -73,7 +73,7 @@ are registered in the `CL-JSCHEMA` **registry**.
 #### `CL-JSCHEMA:VALIDATE`
 
 Validate a value with an instance of `CL-JSCHEMA:JSON-SCHEMA`. Returns `T` or
-throws a condition of type `CL-JSCHEMA:INVALID-JSON`.
+signals a condition of type `CL-JSCHEMA:INVALID-JSON`.
 
 Currently only supports validating values which look like they have been
 previously parsed by `COM.INUOE.JZON:PARSE`.
@@ -85,7 +85,7 @@ Keyword arguments:
   when resolving `$ref`. Can be set to non-`NIL` to consider values as valid
   when `$ref` is not resolvable.
 
-If a condition of type `CL-JSCHEMA:INVALID-JSON` is thrown, then it's possible
+If a condition of type `CL-JSCHEMA:INVALID-JSON` is signaled, then it's possible
 to access all of the validation errors found throughout the validation by using
 `CL-JSCHEMA:INVALID-JSON-ERRORS`.
 
@@ -114,37 +114,37 @@ new one or `CL-JSCHEMA:GET-SCHEMA` to find a previously parsed one.
 
 #### `CL-JSCHEMA:INVALID-SCHEMA`
 
-Conditions of this type are thrown when using `CL-JSCHEMA:PARSE`. This condition
+Conditions of this type are signaled when using `CL-JSCHEMA:PARSE`. This condition
 indicates that the JSON Schema being parsed is invalid.
 
 Information about this condition can be accessed with:
 
 * `CL-JSCHEMA:INVALID-SCHEMA-ERROR-MESSAGE`: the reason why the condition was
-  thrown. Returns a string.
+  signaled. Returns a string.
 * `CL-JSCHEMA:INVALID-SCHEMA-BASE-URI`: the base URI, if any, of the JSON Schema
-  being validated when the condition was thrown. Returns `NIL` or an instance of
+  being validated when the condition was signaled. Returns `NIL` or an instance of
   `PURI:URI`.
 * `CL-JSCHEMA:INVALID-SCHEMA-JSON-POINTER`: the [JSON
   Pointer](https://www.rfc-editor.org/rfc/rfc6901) to the value being validated
-  in the JSON Schema when the condition was thrown. The JSON Pointer is relative
+  in the JSON Schema when the condition was signaled. The JSON Pointer is relative
   to the base URI. Returns a string.
 
 #### `CL-JSCHEMA:UNPARSABLE-JSON`
 
-Conditions of this type are thrown when using `CL-JSCHEMA:PARSE`. This condition
+Conditions of this type are signaled when using `CL-JSCHEMA:PARSE`. This condition
 indicates that an error was encountered when trying to parse the JSON Schema
 JSON.
 
 This condition is a subtype of `CL-JSCHEMA:INVALID-SCHEMA`, meaning the same
 information can be accessed with the same accessors. Additionally:
 
-*  `CL-JSCHEMA:UNPARSABLE-JSON-ERROR`: the condition caught when trying to parse
+*  `CL-JSCHEMA:UNPARSABLE-JSON-ERROR`: the condition handled when trying to parse
    the JSON Schema JSON. Returns an instance of a condition of type
    `COM.INUOE.JZON:JSON-ERROR`.
 
 #### `CL-JSCHEMA:NOT-IMPLEMENTED`
 
-Conditions of this type are thrown when using `CL-JSCHEMA:PARSE`. This condition
+Conditions of this type are signaled when using `CL-JSCHEMA:PARSE`. This condition
 indicates that the JSON Schema is trying to use some property which is not
 implemented by `CL-JSCHEMA`.
 
@@ -153,26 +153,26 @@ information can be accessed with the same accessors.
 
 #### `CL-JSCHEMA:INVALID-JSON`
 
-Conditions of this type are thrown when using `CL-JSCHEMA:VALIDATE`. This
+Conditions of this type are signaled when using `CL-JSCHEMA:VALIDATE`. This
 condition indicates that the value supplied for validation is invalid.
 
 Information about this condition can be accessed with:
 
 * `CL-JSCHEMA:INVALID-JSON-ERRORS`: a list of all conditions of type
-  `CL-JSCHEMA:INVALID-JSON-VALUE` caught while validating the value supplied for
+  `CL-JSCHEMA:INVALID-JSON-VALUE` handled while validating the value supplied for
   validation.
 
 #### `CL-JSCHEMA:INVALID-JSON-VALUE`
 
-Conditions of this type are thrown yet handled internally when using
+Conditions of this type are signaled yet handled internally when using
 `CL-JSCHEMA:VALIDATE`. This condition indicates at a particular value inside the
 supplied value for validation is invalid.
 
 * `CL-JSCHEMA:INVALID-JSON-VALUE-ERROR-MESSAGE`: the reason why the condition
-  was thrown. Returns a string.
+  was signaled. Returns a string.
 * `CL-JSCHEMA:INVALID-JSON-VALUE-JSON-POINTER`: the [JSON
   Pointer](https://www.rfc-editor.org/rfc/rfc6901) to the value being validated
-  when the condition was thrown.
+  when the condition was signaled.
 
 ## Example
 
